@@ -1,0 +1,240 @@
+.checkout-page {
+  padding: 40px 20px;
+  background-color: var(--bg-secondary);
+  min-height: 100vh;
+}
+
+.checkout-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 30px;
+}
+
+.checkout-content {
+  display: flex;
+  gap: 30px;
+  align-items: flex-start;
+}
+
+.checkout-form {
+  flex: 1;
+  background: white;
+  border-radius: 8px;
+  padding: 30px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.checkout-section {
+  margin-bottom: 40px;
+}
+
+.checkout-section h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 16px;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--info-color);
+  box-shadow: 0 0 0 2px rgba(65, 137, 230, 0.2);
+}
+
+.payment-methods-options {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.payment-option {
+  flex: 1;
+  padding: 15px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.payment-option.active {
+  border-color: var(--info-color);
+  background: rgba(65, 137, 230, 0.05);
+}
+
+.btn-confirm-order {
+  width: 100%;
+  padding: 15px;
+  background-color: var(--info-color);
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-confirm-order:hover {
+  background-color: #2968c8;
+}
+
+.btn-confirm-order:disabled {
+  background-color: #a0c3ff;
+  cursor: not-allowed;
+}
+
+/* Sidebar */
+.checkout-sidebar {
+  width: 350px;
+}
+
+.checkout-summary-box {
+  background: white;
+  border-radius: 8px;
+  padding: 25px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+.checkout-summary-box h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.summary-items {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.summary-item img {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.summary-item-info {
+  flex: 1;
+}
+
+.summary-item-name {
+  font-size: 14px;
+  color: var(--text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.summary-item-qty {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.summary-item-price {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.summary-totals {
+  border-top: 1px solid var(--border-color);
+  padding-top: 20px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.grand-total {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+.free-shipping {
+  color: var(--success-color);
+  font-weight: 600;
+}
+
+.security-badges {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.security-badges p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 15px;
+  line-height: 1.4;
+}
+
+.security-badges p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .checkout-content {
+    flex-direction: column;
+  }
+  .checkout-sidebar {
+    width: 100%;
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "short_name": "MarketLux",
+  "name": "Marketplace - Compra y Vende en Línea",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#3483fa",
+  "background_color": "#ffffff"
+}
