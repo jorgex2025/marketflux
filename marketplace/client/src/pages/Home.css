@@ -1,0 +1,331 @@
+.home-fusion {
+  padding-bottom: 60px;
+}
+
+/* Hero Section - ML Style */
+.hero-fusion {
+  background-color: var(--accent-ml);
+  padding: 60px 0;
+  min-height: 420px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.hero-fusion-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.hero-fusion-content {
+  max-width: 600px;
+  z-index: 2;
+}
+
+.hero-tag {
+  background: var(--energy-ali);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 16px;
+  display: inline-block;
+  letter-spacing: 1px;
+}
+
+.hero-fusion-content h1 {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  letter-spacing: -1.5px;
+}
+
+.hero-fusion-content p {
+  font-size: 18px;
+  color: var(--text-primary);
+  margin-bottom: 32px;
+  opacity: 0.9;
+}
+
+.hero-fusion-btn {
+  background: var(--primary-ml);
+  color: white;
+  padding: 16px 32px;
+  border-radius: var(--border-radius-md);
+  font-weight: 700;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 14px rgba(52, 131, 250, 0.4);
+}
+
+.hero-fusion-btn:hover {
+  background: var(--primary-ml-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(52, 131, 250, 0.6);
+}
+
+/* Categories Bubbles - ALI Style */
+.categories-bubbles {
+  background: white;
+  padding: 40px 0;
+  margin-top: -40px;
+  border-radius: 40px 40px 0 0;
+  position: relative;
+  z-index: 5;
+  box-shadow: 0 -10px 30px rgba(0,0,0,0.05);
+}
+
+.bubbles-wrapper {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  scrollbar-width: none;
+}
+
+.bubbles-wrapper::-webkit-scrollbar { display: none; }
+
+.bubble-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 100px;
+  transition: all var(--transition-fast);
+}
+
+.bubble-item:hover {
+  transform: translateY(-5px);
+}
+
+.bubble-icon-wrapper {
+  width: 72px;
+  height: 72px;
+  background: var(--bg-secondary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--border-color);
+}
+
+.bubble-item:hover .bubble-icon-wrapper {
+  background: white;
+  border-color: var(--primary-ml);
+  box-shadow: 0 8px 16px rgba(52, 131, 250, 0.15);
+}
+
+.bubble-icon {
+  font-size: 32px;
+}
+
+.bubble-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* Ofertas Relámpago */
+.lightning-deals {
+  padding: 60px 0;
+}
+
+.lightning-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.lightning-title {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.lightning-title h2 {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.countdown-timer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--energy-ali);
+  color: white;
+  padding: 8px 20px;
+  border-radius: 30px;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);
+}
+
+.timer-units {
+  display: flex;
+  gap: 4px;
+  font-family: monospace;
+  font-size: 18px;
+}
+
+.view-more-link {
+  color: var(--primary-ml);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.lightning-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+/* Featured Section */
+.featured-fusion {
+  padding: 40px 0 80px;
+}
+
+.section-title-fusion {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.products-grid-fusion {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.view-all-fusion {
+  color: var(--primary-ml);
+  font-weight: 700;
+}
+
+/* Promo Banner */
+.promo-fusion-banner {
+  padding: 40px 0;
+}
+
+.promo-fusion-card {
+  background: linear-gradient(135deg, var(--primary-ml) 0%, #1e40af 100%);
+  padding: 60px;
+  border-radius: var(--border-radius-lg);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.promo-label {
+  background: var(--accent-ml);
+  color: var(--text-primary);
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 16px;
+  display: inline-block;
+}
+
+.promo-text h2 {
+  font-size: 36px;
+  font-weight: 800;
+  margin-bottom: 16px;
+}
+
+.promo-text p {
+  font-size: 18px;
+  margin-bottom: 32px;
+  opacity: 0.9;
+}
+
+.promo-fusion-btn-white {
+  background: white;
+  color: var(--primary-ml);
+  padding: 14px 28px;
+  border-radius: var(--border-radius-md);
+  font-weight: 700;
+  display: inline-block;
+  transition: all var(--transition-fast);
+}
+
+.promo-fusion-btn-white:hover {
+  background: var(--bg-secondary);
+  transform: scale(1.05);
+}
+
+/* Trust Features */
+.trust-features {
+  padding: 40px 0;
+  border-top: 1px solid var(--border-color);
+  background: white;
+}
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 32px;
+}
+
+.trust-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.trust-icon-box {
+  width: 48px;
+  height: 48px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--primary-ml);
+}
+
+.trust-info h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.trust-info p {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+  .lightning-grid, .products-grid-fusion {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .hero-fusion-content h1 { font-size: 36px; }
+  .trust-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 576px) {
+  .lightning-grid, .products-grid-fusion {
+    grid-template-columns: repeat(1, 1fr);
+  }
+  .lightning-title { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .hero-fusion-content h1 { font-size: 28px; }
+  .promo-fusion-card { padding: 32px; }
+}

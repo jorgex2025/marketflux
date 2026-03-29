@@ -1,0 +1,15 @@
+node_modules/
+test-results/
+playwright-report/
+videos/
+screenshots/
+*.log
+.env
+.DS_Store
+.kilo/
+.kilocode/
+marketplace/node_modules/
+marketplace/client/node_modules/
+marketplace/server/node_modules/
+marketplace/mariadb/
+marketplace/client/build/
