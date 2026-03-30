@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getAll, getById, add, update, remove, find } = require('../database/db');
 const { authenticate, authorize, optionalAuth } = require('../middleware/auth');
+const { createNotification } = require('./notifications');
 
 // GET /api/products - Obtener todos los productos (con filtros)
 router.get('/', optionalAuth, async (req, res) => {
@@ -43,13 +44,13 @@ router.get('/', optionalAuth, async (req, res) => {
       products = products.filter(p => p.featured);
     }
     
-    // Buscar por nombre o descripción
+    // Buscar por nombre o descripción o tags (con verificación de tipo)
     if (search) {
       const searchLower = search.toLowerCase();
       products = products.filter(p => 
         p.name.toLowerCase().includes(searchLower) ||
         p.description.toLowerCase().includes(searchLower) ||
-        p.tags.some(tag => tag.toLowerCase().includes(searchLower))
+        (Array.isArray(p.tags) && p.tags.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(searchLower)))
       );
     }
     
@@ -333,7 +334,18 @@ router.post('/:id/reviews', authenticate, async (req, res) => {
       rating: Math.round(avgRating * 10) / 10,
       reviews: productReviews.length
     });
-    
+
+    // Notificar al vendedor
+    if (product.sellerId) {
+      await createNotification(
+        product.sellerId,
+        'new_review',
+        'Nueva reseña en tu producto',
+        `${req.user.name} ha dejado una reseña de ${rating} estrellas en "${product.name}"`,
+        { productId: product.id, reviewId: newReview.id }
+      );
+    }
+
     res.status(201).json({
       success: true,
       message: 'Reseña agregada exitosamente',

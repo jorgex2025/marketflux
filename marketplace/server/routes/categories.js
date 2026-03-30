@@ -8,11 +8,11 @@ router.get('/', async (req, res) => {
   try {
     const categories = await getAll('categories');
     
-    // Agregar conteo de productos a cada categoría
+    // Agregar conteo de productos a cada categoría (comparando por nombre de categoría)
     const products = await getAll('products');
     const categoriesWithCount = categories.map(category => ({
       ...category,
-      productCount: products.filter(p => p.category === category.id && p.status === 'active').length
+      productCount: products.filter(p => p.category === category.name && p.status === 'active').length
     }));
     
     res.json(categoriesWithCount);
@@ -37,10 +37,10 @@ router.get('/:id', async (req, res) => {
       });
     }
     
-    // Agregar productos de esta categoría
+    // Agregar productos de esta categoría (comparando por nombre de categoría)
     const products = await getAll('products');
     const categoryProducts = products.filter(
-      p => p.category === category.id && p.status === 'active'
+      p => p.category === category.name && p.status === 'active'
     );
     
     res.json({
@@ -135,9 +135,9 @@ router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
       });
     }
     
-    // Verificar si hay productos en esta categoría
+    // Verificar si hay productos en esta categoría (comparando por nombre)
     const products = await getAll('products');
-    const productsInCategory = products.filter(p => p.category === req.params.id);
+    const productsInCategory = products.filter(p => p.category === category.name);
     
     if (productsInCategory.length > 0) {
       return res.status(400).json({

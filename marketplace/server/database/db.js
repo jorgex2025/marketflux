@@ -6,6 +6,17 @@ const bcrypt = require('bcryptjs');
 const DB_FILE = path.join(__dirname, 'marketplace.db');
 const db = new Database(DB_FILE);
 
+// Whitelist of allowed table names to prevent SQL injection
+const ALLOWED_COLLECTIONS = ['users', 'products', 'categories', 'carts', 'orders', 'reviews'];
+
+// Validate collection name to prevent SQL injection
+const validateCollection = (collection) => {
+  if (!ALLOWED_COLLECTIONS.includes(collection)) {
+    throw new Error(`Invalid collection: ${collection}`);
+  }
+  return collection;
+};
+
 // Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -28,10 +39,18 @@ const initDB = () => {
         storeRating REAL DEFAULT 0,
         totalSales INTEGER DEFAULT 0,
         isActive INTEGER DEFAULT 1,
+        resetToken TEXT,
+        resetTokenExpiry TEXT,
         createdAt TEXT DEFAULT (datetime('now')),
         updatedAt TEXT DEFAULT (datetime('now'))
       )
     `);
+
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_users_resetToken ON users(resetToken)`);
+
+    db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS resetToken TEXT`);
+    db.exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS resetTokenExpiry TEXT`);
 
     db.exec(`
       CREATE TABLE IF NOT EXISTS products (
@@ -114,6 +133,86 @@ const initDB = () => {
         createdAt TEXT DEFAULT (datetime('now')),
         updatedAt TEXT DEFAULT (datetime('now')),
         FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS newsletter (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE,
+        subscribedAt TEXT DEFAULT (datetime('now')),
+        status TEXT DEFAULT 'active'
+      )
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS favorites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER,
+        productId INTEGER,
+        createdAt TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE,
+        UNIQUE(userId, productId)
+      )
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS contacts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        subject TEXT,
+        message TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        userId INTEGER,
+        createdAt TEXT DEFAULT (datetime('now')),
+        updatedAt TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS compare (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER,
+        productId INTEGER,
+        createdAt TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE,
+        UNIQUE(userId, productId)
+      )
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        data TEXT DEFAULT '{}',
+        isRead INTEGER DEFAULT 0,
+        createdAt TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS addresses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER,
+        name TEXT,
+        street TEXT,
+        city TEXT,
+        state TEXT,
+        zipCode TEXT,
+        country TEXT,
+        phone TEXT,
+        isDefault INTEGER DEFAULT 0,
+        createdAt TEXT DEFAULT (datetime('now')),
+        updatedAt TEXT DEFAULT (datetime('now')),
         FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
@@ -232,7 +331,7 @@ const parseRow = (row) => {
   if (parsed.productId) parsed.productId = String(parsed.productId);
 
   // Parse JSON fields
-  const jsonFields = ['images', 'tags', 'specifications', 'shipping', 'items', 'shippingAddress'];
+  const jsonFields = ['images', 'tags', 'specifications', 'shipping', 'items', 'shippingAddress', 'data'];
   for (const field of jsonFields) {
     if (typeof parsed[field] === 'string') {
       try {
@@ -246,17 +345,21 @@ const parseRow = (row) => {
   // Ensure boolean fields
   if (parsed.featured !== undefined) parsed.featured = parsed.featured === 1;
   if (parsed.isActive !== undefined) parsed.isActive = parsed.isActive === 1;
+  if (parsed.isRead !== undefined) parsed.isRead = parsed.isRead === 1;
+  if (parsed.isDefault !== undefined) parsed.isDefault = parsed.isDefault === 1;
 
   return parsed;
 };
 
 const getAll = async (collection) => {
-  const rows = db.prepare(`SELECT * FROM ${collection}`).all();
+  const validatedCollection = validateCollection(collection);
+  const rows = db.prepare(`SELECT * FROM ${validatedCollection}`).all();
   return rows.map(parseRow);
 };
 
 const getById = async (collection, id) => {
-  const row = db.prepare(`SELECT * FROM ${collection} WHERE id = ?`).get(parseInt(id));
+  const validatedCollection = validateCollection(collection);
+  const row = db.prepare(`SELECT * FROM ${validatedCollection} WHERE id = ?`).get(parseInt(id));
   return parseRow(row);
 };
 
@@ -287,7 +390,8 @@ const add = async (collection, item) => {
   const placeholders = columns.map(() => '?').join(', ');
   const values = columns.map(c => dataToInsert[c]);
 
-  const stmt = db.prepare(`INSERT INTO ${collection} (${columns.join(', ')}) VALUES (${placeholders})`);
+  const validatedCollection = validateCollection(collection);
+  const stmt = db.prepare(`INSERT INTO ${validatedCollection} (${columns.join(', ')}) VALUES (${placeholders})`);
   const result = stmt.run(...values);
 
   return await getById(collection, result.lastInsertRowid);
@@ -316,17 +420,20 @@ const update = async (collection, id, updates) => {
   const setClause = keys.map(k => `${k} = ?`).join(', ');
   const values = keys.map(k => dataToUpdate[k]);
 
-  db.prepare(`UPDATE ${collection} SET ${setClause} WHERE id = ?`).run(...values, parseInt(id));
+  const validatedCollection = validateCollection(collection);
+  db.prepare(`UPDATE ${validatedCollection} SET ${setClause} WHERE id = ?`).run(...values, parseInt(id));
   return await getById(collection, id);
 };
 
 const remove = async (collection, id) => {
-  db.prepare(`DELETE FROM ${collection} WHERE id = ?`).run(parseInt(id));
+  const validatedCollection = validateCollection(collection);
+  db.prepare(`DELETE FROM ${validatedCollection} WHERE id = ?`).run(parseInt(id));
   return true;
 };
 
 const find = async (collection, criteria) => {
-  const rows = await getAll(collection);
+  const validatedCollection = validateCollection(collection);
+  const rows = await getAll(validatedCollection);
   return rows.filter(item => {
     return Object.keys(criteria).every(key => {
       if (typeof criteria[key] === 'object' && criteria[key] !== null) {

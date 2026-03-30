@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from './AuthContext';
@@ -17,6 +17,7 @@ export const CartProvider = ({ children }) => {
   const [cart, setCart] = useState({ items: [], subtotal: 0, shipping: 0, tax: 0, total: 0 });
   const [loading, setLoading] = useState(false);
   const { isAuthenticated } = useAuth();
+  const prevCartRef = useRef(null);
 
   const fetchCart = useCallback(async () => {
     try {
@@ -49,11 +50,16 @@ export const CartProvider = ({ children }) => {
     }
   }, [isAuthenticated, fetchCart]);
 
-  // Guardar carrito en localStorage cuando no está autenticado
+  // Guardar carrito en localStorage cuando no está autenticado (solo si hay cambios reales)
   useEffect(() => {
-    if (!isAuthenticated) {
-      localStorage.setItem('cart', JSON.stringify(cart));
-    }
+    // Skip if authenticated (cart is stored on server)
+    if (isAuthenticated) return;
+    
+    // Skip if cart is same as previous (prevents infinite loop)
+    if (prevCartRef.current && JSON.stringify(prevCartRef.current) === JSON.stringify(cart)) return;
+    
+    prevCartRef.current = cart;
+    localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart, isAuthenticated]);
 
   const addToCart = async (product, quantity = 1) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,7 @@ const Checkout = () => {
   const { cart, clearCart } = useCart();
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+  const isMountedRef = useRef(true); // Track if component is still mounted
   
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -25,13 +26,20 @@ const Checkout = () => {
   });
 
   useEffect(() => {
+    // Cleanup on unmount to prevent race conditions
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isAuthenticated) {
       toast.error('Debes iniciar sesión para finalizar la compra');
       navigate('/login');
     } else if (!cart.items || cart.items.length === 0) {
       navigate('/cart');
     }
-  }, [isAuthenticated, cart.items.length, navigate]);
+  }, [isAuthenticated, cart, navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -77,6 +85,9 @@ const Checkout = () => {
         toast.success('Procesando pago...');
         
         setTimeout(() => {
+          // Only navigate if component is still mounted (user didn't leave)
+          if (!isMountedRef.current) return;
+          
           clearCart();
           toast.success('¡Compra completada con éxito!');
           navigate('/profile');
@@ -95,7 +106,22 @@ const Checkout = () => {
     return items.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
-  if (!cart.items || cart.items.length === 0) return null;
+  // Show loading or empty state instead of silent null
+  if (!cart.items || cart.items.length === 0) {
+    return (
+      <div className="checkout-page">
+        <div className="container checkout-container">
+          <div className="empty-cart-message">
+            <h2>Tu carrito está vacío</h2>
+            <p>Agrega productos para continuar con la compra</p>
+            <button onClick={() => navigate('/products')} className="btn-primary">
+              Ver productos
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="checkout-page">

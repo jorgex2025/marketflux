@@ -2,16 +2,33 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { getAll, getById, add, update, find } = require('../database/db');
 const { authenticate } = require('../middleware/auth');
 
-// Generar token JWT
+const RESET_TOKEN_EXPIRY = 15 * 60 * 1000;
+
 const generateToken = (user) => {
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
+};
+
+const generateResetToken = () => {
+  return crypto.randomBytes(32).toString('hex');
+};
+
+const sendResetEmail = async (email, token) => {
+  console.log('========================================');
+  console.log('📧 EMAIL DE RECUPERACIÓN (SIMULADO)');
+  console.log('========================================');
+  console.log(`Para: ${email}`);
+  console.log(`Asunto: Restablecer contraseña - Marketplace`);
+  console.log(`Reset Link: http://localhost:3000/reset-password?token=${token}`);
+  console.log(`Expira en: 15 minutos`);
+  console.log('========================================');
 };
 
 // POST /api/auth/register - Registrar nuevo usuario
@@ -24,6 +41,14 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Nombre, email y contraseña son requeridos'
+      });
+    }
+    
+    // Validar longitud mínima de contraseña
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'La contraseña debe tener al menos 6 caracteres'
       });
     }
     
@@ -269,6 +294,100 @@ router.post('/change-password', authenticate, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error al cambiar contraseña'
+    });
+  }
+});
+
+// POST /api/auth/forgot-password - Solicitar recuperación de contraseña
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email es requerido'
+      });
+    }
+
+    const users = await find('users', { email });
+    
+    if (users.length > 0) {
+      const user = users[0];
+      const resetToken = generateResetToken();
+      const tokenExpiry = Date.now() + RESET_TOKEN_EXPIRY;
+      
+      await update('users', user.id, {
+        resetToken: resetToken,
+        resetTokenExpiry: tokenExpiry.toString()
+      });
+
+      await sendResetEmail(email, resetToken);
+    }
+
+    res.json({
+      success: true,
+      message: 'Si el email existe en nuestro sistema, recibirás un enlace para restablecer tu contraseña'
+    });
+  } catch (error) {
+    console.error('Error en forgot-password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al procesar la solicitud'
+    });
+  }
+});
+
+// POST /api/auth/reset-password - Restablecer contraseña
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token y nueva contraseña son requeridos'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'La contraseña debe tener al menos 6 caracteres'
+      });
+    }
+
+    const allUsers = await getAll('users');
+    const user = allUsers.find(u => 
+      u.resetToken === token && 
+      u.resetTokenExpiry && 
+      parseInt(u.resetTokenExpiry) > Date.now()
+    );
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token inválido o expirado'
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    await update('users', user.id, {
+      password: hashedPassword,
+      resetToken: null,
+      resetTokenExpiry: null
+    });
+
+    res.json({
+      success: true,
+      message: 'Contraseña actualizada exitosamente'
+    });
+  } catch (error) {
+    console.error('Error en reset-password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al restablecer contraseña'
     });
   }
 });

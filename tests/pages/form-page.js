@@ -199,6 +199,12 @@ class FormPage extends BasePage {
     await this.clear(this.selectors.firstName);
   }
 
+  // Helper method to get locator from selector string (for proper page object pattern)
+  getLocator(selector) {
+    return this.page.locator(selector);
+  }
+}
+
   async clearLastName() {
     await this.clear(this.selectors.lastName);
   }

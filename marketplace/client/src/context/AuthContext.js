@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -16,6 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+  const logoutRef = useRef(null); // Reference to track latest logout function
 
   // Configurar axios con el token
   useEffect(() => {
@@ -33,6 +34,11 @@ export const AuthProvider = ({ children }) => {
     delete axios.defaults.headers.common['Authorization'];
   }, []);
 
+  // Keep logoutRef updated with latest logout
+  useEffect(() => {
+    logoutRef.current = logout;
+  }, [logout]);
+
   // Verificar si el usuario está autenticado al cargar
   useEffect(() => {
     const verifyToken = async () => {
@@ -42,18 +48,18 @@ export const AuthProvider = ({ children }) => {
           if (response.data.success && response.data.data) {
             setUser(response.data.data);
           } else {
-            logout();
+            logoutRef.current?.();
           }
         } catch (error) {
           console.error('Error verificando token:', error);
-          logout();
+          logoutRef.current?.();
         }
       }
       setLoading(false);
     };
 
     verifyToken();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token]); // Removed eslint-disable, now has token as dependency
 
   const login = async (email, password) => {
     try {

@@ -1,6 +1,14 @@
 const jwt = require('jsonwebtoken');
 const { getById } = require('../database/db');
 
+// Validate JWT_SECRET on startup
+if (!process.env.JWT_SECRET) {
+  console.error('❌ FATAL: JWT_SECRET environment variable is not set!');
+  process.exit(1);
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
 // Middleware para verificar token JWT
 const authenticate = async (req, res, next) => {
   try {
@@ -17,7 +25,7 @@ const authenticate = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     
     // Verificar token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     
     // Obtener usuario de la base de datos (async)
     const user = await getById('users', decoded.id);
@@ -86,7 +94,7 @@ const optionalAuth = async (req, res, next) => {
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, JWT_SECRET);
       const user = await getById('users', decoded.id);
       
       if (user) {

@@ -79,7 +79,7 @@ const Orders = () => {
                   <span className="order-date">
                     {new Date(order.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
                   </span>
-                  <span className="order-id">#ORD-{order.id.padStart(5, '0')}</span>
+                  <span className="order-id">#ORD-{String(order.id).padStart(5, '0')}</span>
                 </div>
                 <div className={`order-status-badge ${order.status}`}>
                   {getStatusIcon(order.status)}
@@ -89,8 +89,8 @@ const Orders = () => {
 
               <div className="order-card-body">
                 <div className="order-items">
-                  {order.items.map((item, index) => (
-                    <div key={index} className="order-item-row">
+                  {order.items.map((item) => (
+                    <div key={item.productId} className="order-item-row">
                       <div className="item-thumbnail">
                         <img src={item.image} alt={item.name} />
                       </div>

@@ -248,7 +248,7 @@ const SellerDashboard = () => {
                       <td>
                         <div className="td-actions">
                           <Link to={`/products/${product.id}`} className="icon-btn" title="Ver"><FaEye /></Link>
-                          <button className="icon-btn edit" title="Editar"><FaEdit /></button>
+                          <Link to={`/seller/products/${product.id}/edit`} className="icon-btn edit" title="Editar"><FaEdit /></Link>
                           <button onClick={() => handleDeleteProduct(product.id)} className="icon-btn delete" title="Eliminar"><FaTrash /></button>
                         </div>
                       </td>

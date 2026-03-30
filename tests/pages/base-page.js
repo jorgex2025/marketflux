@@ -304,7 +304,12 @@ class BasePage {
   }
 
   expect(actual) {
-    return expect(actual);
+    // Use this.page.locator for proper page object pattern
+    return expect(this.page.locator(actual));
+  }
+
+  expectLocator(selector) {
+    return expect(this.page.locator(selector));
   }
 
   expectVisible(selector, options = {}) {

@@ -213,7 +213,7 @@ test.describe('Manejo de esperas', () => {
 
     test('Esperar texto contenga', async ({ page }) => {
       await page.goto('/');
-      await page.waitForSelector('has-text=Success', { state: 'visible', timeout: 10000 });
+      await page.waitForSelector(':has-text("Success")', { state: 'visible', timeout: 10000 });
     });
   });
 

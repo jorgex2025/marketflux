@@ -22,9 +22,8 @@ module.exports = defineConfig({
     video: 'retain-on-failure',
     actionTimeout: 10000,
     navigationTimeout: 30000,
-    locale: 'es-ES',
-    timezoneId: 'America/New_York',
-    permissions: ['geolocation'],
+    locale: process.env.TEST_LOCALE || 'es-ES',
+    timezoneId: process.env.TEST_TIMEZONE || 'America/New_York',
     viewport: { width: 1280, height: 720 },
   },
   projects: [
@@ -32,10 +31,6 @@ module.exports = defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        launchOptions: {
-          executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-          args: ['--disable-web-security'],
-        },
       },
     },
     {

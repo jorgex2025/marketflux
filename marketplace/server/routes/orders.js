@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getAll, getById, add, update, find } = require('../database/db');
 const { authenticate, authorize } = require('../middleware/auth');
+const { createNotification } = require('./notifications');
 
 // GET /api/orders - Obtener órdenes del usuario
 router.get('/', authenticate, async (req, res) => {
@@ -148,11 +149,17 @@ router.post('/', authenticate, async (req, res) => {
       subtotal += item.price * item.quantity;
     }
     
-    // Calcular totales
+    // Calcular totales (shipping solo una vez, no por cada item)
     let shipping = 0;
+    const uniqueProducts = new Map();
     for (const item of orderItems) {
-      const product = await getById('products', item.productId);
-      shipping += (product?.shipping?.cost || 0);
+      if (!uniqueProducts.has(item.productId)) {
+        const product = await getById('products', item.productId);
+        if (product?.shipping?.cost) {
+          shipping += product.shipping.cost;
+        }
+        uniqueProducts.set(item.productId, true);
+      }
     }
     
     const tax = subtotal * 0.16;
@@ -186,7 +193,33 @@ router.post('/', authenticate, async (req, res) => {
     
     // Vaciar carrito
     await update('carts', cart.id, { items: [] });
-    
+
+    // Notificar a los vendedores
+    const sellerNotifications = {};
+    for (const item of orderItems) {
+      const product = await getById('products', item.productId);
+      if (product && !sellerNotifications[product.sellerId]) {
+        sellerNotifications[product.sellerId] = {
+          sellerId: product.sellerId,
+          products: []
+        };
+        sellerNotifications[product.sellerId].products.push(item.name);
+      } else if (product && sellerNotifications[product.sellerId]) {
+        sellerNotifications[product.sellerId].products.push(item.name);
+      }
+    }
+
+    for (const sellerId in sellerNotifications) {
+      const products = sellerNotifications[sellerId].products.join(', ');
+      await createNotification(
+        sellerId,
+        'order_status',
+        'Nueva orden recibida',
+        `Tienes una nueva orden: ${products}`,
+        { orderId: newOrder.id }
+      );
+    }
+
     res.status(201).json({
       success: true,
       message: 'Orden creada exitosamente',
@@ -251,20 +284,38 @@ router.put('/:id/status', authenticate, authorize('seller', 'admin'), async (req
     if (status === 'cancelled') {
       updates.paymentStatus = 'refunded';
       
-      // Restaurar stock
+      // Restaurar stock (no permitir sold < 0)
       for (const item of order.items) {
         const product = await getById('products', item.productId);
         if (product) {
+          const newSold = Math.max(0, product.sold - item.quantity);
           await update('products', item.productId, {
             stock: product.stock + item.quantity,
-            sold: product.sold - item.quantity
+            sold: newSold
           });
         }
       }
     }
     
     const updatedOrder = await update('orders', req.params.id, updates);
-    
+
+    // Notificar al comprador
+    const statusMessages = {
+      pending: 'Tu orden está siendo procesada',
+      processing: 'Tu orden está siendo preparada',
+      shipped: `Tu orden ha sido enviada${trackingNumber ? `. Tracking: ${trackingNumber}` : ''}`,
+      delivered: 'Tu orden ha sido entregada',
+      cancelled: 'Tu orden ha sido cancelada'
+    };
+
+    await createNotification(
+      order.userId,
+      'order_status',
+      'Estado de orden actualizado',
+      statusMessages[status] || `Tu orden ahora está: ${status}`,
+      { orderId: order.id, status }
+    );
+
     res.json({
       success: true,
       message: 'Estado de orden actualizado',
