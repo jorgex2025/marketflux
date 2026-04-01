@@ -34,11 +34,13 @@ import { MaintenanceGuard } from './common/guards/maintenance.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
+// NOTA: AuthModule debe ir ANTES que los guards en el array de imports
+// para que AuthService esté disponible cuando AuthGuard se registra como global
 @Module({
   controllers: [AppController],
   imports: [
     DatabaseModule,
-    AuthModule,
+    AuthModule,   // <-- primero para que AuthService esté resuelto
     StorageModule,
     VendorsModule,
     ProductsModule,
@@ -66,10 +68,10 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     ReportsModule,
   ],
   providers: [
-    { provide: APP_FILTER, useClass: HttpExceptionFilter },
-    { provide: APP_GUARD, useClass: AuthGuard },
-    { provide: APP_GUARD, useClass: RolesGuard },
-    { provide: APP_GUARD, useClass: MaintenanceGuard },
+    { provide: APP_FILTER,      useClass: HttpExceptionFilter },
+    { provide: APP_GUARD,       useClass: AuthGuard },
+    { provide: APP_GUARD,       useClass: RolesGuard },
+    { provide: APP_GUARD,       useClass: MaintenanceGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })

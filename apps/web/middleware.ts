@@ -10,6 +10,8 @@ const PROTECTED_PREFIXES = [
 
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
+
+  // Better Auth setea ambas cookies dependiendo de si el request es HTTPS o HTTP
   const sessionToken =
     request.cookies.get('better-auth.session_token')?.value ??
     request.cookies.get('__Secure-better-auth.session_token')?.value;
@@ -24,11 +26,12 @@ export function middleware(request: NextRequest): NextResponse {
   return NextResponse.next();
 }
 
+// El matcher NO usa route groups (paréntesis) — usa los paths URL reales
 export const config = {
   matcher: [
-    '/(account)/:path*',
-    '/(vendor)/:path*',
-    '/(admin)/:path*',
+    '/account/:path*',
+    '/vendor/:path*',
+    '/admin/:path*',
     '/checkout',
     '/orders/:path*',
   ],

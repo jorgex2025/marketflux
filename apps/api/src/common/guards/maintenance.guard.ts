@@ -3,15 +3,23 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
 } from '@nestjs/common';
-import { db } from '../../database/database.module';
+import { DB } from '../../database/database.module';
+import type { DrizzleDB } from '../../database/database.module';
 import { marketplaceConfig } from '../../database/schema';
 
 @Injectable()
 export class MaintenanceGuard implements CanActivate {
+  constructor(@Inject(DB) private readonly db: DrizzleDB) {}
+
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    const [config] = await db.select().from(marketplaceConfig).limit(1);
+    const [config] = await this.db
+      .select({ maintenanceMode: marketplaceConfig.maintenanceMode })
+      .from(marketplaceConfig)
+      .limit(1);
+
     if (!config?.maintenanceMode) return true;
 
     const req = ctx.switchToHttp().getRequest<{ user?: { role?: string } }>();
