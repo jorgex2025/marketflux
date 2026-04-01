@@ -1,0 +1,6 @@
+{
+  "name": "@marketplace/validators",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}
