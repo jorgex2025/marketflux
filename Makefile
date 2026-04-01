@@ -1,9 +1,13 @@
-.PHONY: setup dev migrate seed build lint test typecheck
+.PHONY: setup dev migrate seed build lint test typecheck phase3-deps
 
 setup:
 	cp apps/api/.env.example apps/api/.env || true
 	cp apps/web/.env.local.example apps/web/.env.local || true
 	pnpm install
+
+phase3-deps:
+	pnpm install
+	@echo "✅  Fase 3 deps instaladas"
 
 dev:
 	docker compose up -d
