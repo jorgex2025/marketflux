@@ -1,18 +1,31 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { auth } from '../../auth/auth.service';
+import type { Request } from 'express';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
+      ctx.getHandler(),
+      ctx.getClass(),
     ]);
     if (isPublic) return true;
-    // TODO: Fase 2 — validar sesión Better Auth
-    throw new UnauthorizedException();
+
+    const req = ctx.switchToHttp().getRequest<Request & { user?: unknown; session?: unknown }>();
+    const session = await auth.api.getSession({ headers: req.headers as Headers });
+    if (!session) throw new UnauthorizedException({ error: 'UNAUTHORIZED', message: 'No valid session' });
+
+    req.user = session.user;
+    req.session = session.session;
+    return true;
   }
 }

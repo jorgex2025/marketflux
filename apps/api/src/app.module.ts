@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { StorageModule } from './storage/storage.module';
 import { DatabaseModule } from './database/database.module';
@@ -26,8 +27,15 @@ import { BannersModule } from './banners/banners.module';
 import { MarketplaceConfigModule } from './config/config.module';
 import { AuditModule } from './audit/audit.module';
 import { ReportsModule } from './reports/reports.module';
+import { AppController } from './app.controller';
+import { AuthGuard } from './common/guards/auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { MaintenanceGuard } from './common/guards/maintenance.guard';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 @Module({
+  controllers: [AppController],
   imports: [
     DatabaseModule,
     AuthModule,
@@ -56,6 +64,13 @@ import { ReportsModule } from './reports/reports.module';
     MarketplaceConfigModule,
     AuditModule,
     ReportsModule,
+  ],
+  providers: [
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: MaintenanceGuard },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
 export class AppModule {}
