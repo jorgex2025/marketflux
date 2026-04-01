@@ -3,6 +3,7 @@ import {
   text,
   timestamp,
   numeric,
+  boolean,
   pgEnum,
 } from 'drizzle-orm/pg-core';
 import { users } from './auth.schema';
@@ -43,7 +44,7 @@ export const payments = pgTable('payments', {
   externalId: text('external_id'),
   status: paymentStatusEnum('status').notNull().default('pending'),
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
-  currency: text('currency').notNull().default('USD'),
+  currency: text('currency').notNull().default('COP'),
   metadata: text('metadata'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -54,7 +55,7 @@ export const commissions = pgTable('commissions', {
   type: commissionTypeEnum('type').notNull().default('global'),
   referenceId: text('reference_id'),
   rate: numeric('rate', { precision: 5, scale: 4 }).notNull(),
-  active: text('active').notNull().default('true'),
+  active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -69,7 +70,10 @@ export const payouts = pgTable('payouts', {
     .references(() => users.id, { onDelete: 'restrict' }),
   status: payoutStatusEnum('status').notNull().default('pending'),
   grossAmount: numeric('gross_amount', { precision: 12, scale: 2 }).notNull(),
-  commissionAmount: numeric('commission_amount', { precision: 12, scale: 2 }).notNull(),
+  commissionAmount: numeric('commission_amount', {
+    precision: 12,
+    scale: 2,
+  }).notNull(),
   netAmount: numeric('net_amount', { precision: 12, scale: 2 }).notNull(),
   periodStart: timestamp('period_start').notNull(),
   periodEnd: timestamp('period_end').notNull(),

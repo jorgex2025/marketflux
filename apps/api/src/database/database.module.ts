@@ -13,6 +13,11 @@ export type DrizzleDB = ReturnType<typeof drizzle<typeof schema>>;
     {
       provide: DB,
       useFactory: () => {
+        if (!process.env.DATABASE_URL) {
+          throw new Error(
+            '[DatabaseModule] DATABASE_URL env variable is required but not defined.',
+          );
+        }
         const pool = new Pool({
           connectionString: process.env.DATABASE_URL,
         });
