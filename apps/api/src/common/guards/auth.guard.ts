@@ -28,8 +28,8 @@ export class AuthGuard implements CanActivate {
       Request & { user?: unknown; session?: unknown }
     >();
 
-    // better-auth espera Headers (Web API), Express usa object plano — castear es seguro
-    const session = await this.authService.instance.api.getSession({
+    // better-auth expone la instancia en .auth (no .instance)
+    const session = await this.authService.auth.api.getSession({
       headers: req.headers as unknown as Headers,
     });
 
