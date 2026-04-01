@@ -9,35 +9,18 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.782.0",
-    "@nestjs/bullmq": "^11.0.2",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
-    "@nestjs/mapped-types": "^2.0.6",
     "@nestjs/platform-express": "^11.0.0",
-    "@nestjs/throttler": "^6.4.0",
-    "better-auth": "^1.5.0",
-    "bullmq": "^5.0.0",
-    "class-transformer": "^0.5.1",
-    "class-validator": "^0.14.1",
-    "drizzle-orm": "^0.44.0",
-    "meilisearch": "^0.49.0",
-    "multer": "^1.4.5-lts.2",
-    "pg": "^8.14.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "zod": "^3.25.0"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@marketplace/eslint-config": "workspace:*",
     "@marketplace/typescript-config": "workspace:*",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
-    "@types/multer": "^1.4.12",
     "@types/node": "^22.0.0",
-    "@types/pg": "^8.11.11",
-    "drizzle-kit": "^0.30.0",
-    "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   }

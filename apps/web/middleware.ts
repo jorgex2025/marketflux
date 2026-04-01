@@ -1,37 +1,16 @@
-import { type NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
-const PROTECTED_PREFIXES = [
-  '/account',
-  '/vendor',
-  '/admin',
-  '/checkout',
-  '/orders',
-];
-
-export function middleware(request: NextRequest): NextResponse {
-  const { pathname } = request.nextUrl;
-
-  // Better Auth setea ambas cookies dependiendo de si el request es HTTPS o HTTP
-  const sessionToken =
-    request.cookies.get('better-auth.session_token')?.value ??
-    request.cookies.get('__Secure-better-auth.session_token')?.value;
-
-  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
-  if (isProtected && !sessionToken) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('callbackUrl', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
+// TODO: Fase 2 — proteger rutas (account), (vendor), (admin), checkout, orders
+export function middleware(_request: NextRequest) {
   return NextResponse.next();
 }
 
-// El matcher NO usa route groups (paréntesis) — usa los paths URL reales
 export const config = {
   matcher: [
-    '/account/:path*',
-    '/vendor/:path*',
-    '/admin/:path*',
+    '/(account)/:path*',
+    '/(vendor)/:path*',
+    '/(admin)/:path*',
     '/checkout',
     '/orders/:path*',
   ],
