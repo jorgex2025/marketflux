@@ -1,45 +1,55 @@
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { DB } from '../database/database.module';
-import type { DrizzleDB } from '../database/database.module';
-import {
-  users,
-  sessions,
-  accounts,
-  verifications,
-} from '../database/schema';
+import { Inject } from '@nestjs/common';
+import { DATABASE_TOKEN } from '../database/database.module';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type * as schema from '../database/schema/index';
+import type { Request } from 'express';
 
-export type BetterAuthInstance = ReturnType<typeof betterAuth>;
+export interface SessionUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  emailVerified: boolean;
+}
+
+export interface AuthenticatedRequest extends Request {
+  user: SessionUser;
+}
+
+type DB = NodePgDatabase<typeof schema>;
 
 @Injectable()
-export class AuthService implements OnModuleInit {
-  private _auth!: BetterAuthInstance;
+export class AuthService {
+  public readonly auth: ReturnType<typeof betterAuth>;
 
-  constructor(@Inject(DB) private readonly db: DrizzleDB) {}
-
-  onModuleInit(): void {
-    this._auth = betterAuth({
+  constructor(@Inject(DATABASE_TOKEN) private readonly db: DB) {
+    this.auth = betterAuth({
       database: drizzleAdapter(this.db, {
         provider: 'pg',
         schema: {
-          user: users,
-          session: sessions,
-          account: accounts,
-          verification: verifications,
+          user: schema.users,
+          session: schema.sessions,
+          account: schema.accounts,
+          verification: schema.verifications,
         },
       }),
-      emailAndPassword: { enabled: true },
-      trustedOrigins: [process.env['FRONTEND_URL'] ?? 'http://localhost:3000'],
+      secret: process.env['BETTER_AUTH_SECRET'] ?? 'change-this-in-production-min-32-chars',
+      baseURL: process.env['BETTER_AUTH_URL'] ?? 'http://localhost:3001',
+      trustedOrigins: [
+        process.env['FRONTEND_URL'] ?? 'http://localhost:3000',
+      ],
       user: {
         additionalFields: {
-          role: { type: 'string', defaultValue: 'buyer', input: false },
+          role: { type: 'string', defaultValue: 'buyer' },
         },
       },
+      emailAndPassword: {
+        enabled: true,
+        requireEmailVerification: false,
+      },
     });
-  }
-
-  get instance(): BetterAuthInstance {
-    return this._auth;
   }
 }
