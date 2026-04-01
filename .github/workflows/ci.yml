@@ -10,16 +10,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Lee la versión desde packageManager en package.json (pnpm@10.11.0)
-      # No pasar "version:" para evitar conflicto con packageManager field
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          # cache: pnpm  <- desactivado hasta que pnpm-lock.yaml esté commiteado
 
-      - run: pnpm install --frozen-lockfile=false
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Commit lockfile if generated
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml || true
+          git diff --staged --quiet || git commit -m "chore: update pnpm-lock.yaml [skip ci]"
+          git push || true
+
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm build
