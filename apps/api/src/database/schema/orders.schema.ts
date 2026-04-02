@@ -34,6 +34,9 @@ export const orders = pgTable('orders', {
   shippingAddressId: text('shipping_address_id'),
   shippingMethodId: text('shipping_method_id'),
   notes: text('notes'),
+  // Stripe tracking — poblados por webhook checkout.session.completed
+  stripeSessionId: text('stripe_session_id'),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
