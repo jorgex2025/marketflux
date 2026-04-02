@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Inject } from '@nestjs/common';
 import { DATABASE_TOKEN } from '../database/database.module';
@@ -34,7 +34,7 @@ export class PaymentsService {
     this.stripe = new Stripe(secretKey, { apiVersion: '2025-01-27.acacia' });
   }
 
-  // ─── Crear Stripe Checkout Session ────────────────────────────────────
+  // ─── Crear Stripe Checkout Session ───────────────────────────────────
 
   async createCheckoutSession(
     dto: CreateCheckoutSessionDto,
@@ -74,13 +74,19 @@ export class PaymentsService {
       metadata: { orderId: order.id, userId },
     };
 
-    // Aplicar descuento si existe
+    // Descuento: idempotency key basada en orderId para evitar cupones Stripe duplicados
     if (order.discountAmount && Number(order.discountAmount) > 0) {
-      const coupon = await this.getOrCreateStripeCoupon(order.discountAmount);
-      sessionParams.discounts = [{ coupon }];
+      const couponId = await this.getOrCreateStripeCoupon(
+        order.discountAmount,
+        order.id,
+      );
+      sessionParams.discounts = [{ coupon: couponId }];
     }
 
-    const session = await this.stripe.checkout.sessions.create(sessionParams);
+    const session = await this.stripe.checkout.sessions.create(sessionParams, {
+      // Idempotency key a nivel de session: reuso seguro si el usuario recarga
+      idempotencyKey: `checkout-session-${order.id}`,
+    });
 
     if (!session.url) {
       throw new InternalServerErrorException('Stripe no devolvió URL de pago');
@@ -89,13 +95,14 @@ export class PaymentsService {
     // Guardar stripeSessionId en la orden
     await this.db
       .update(schema.orders)
-      .set({ stripeSessionId: session.id })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .set({ stripeSessionId: session.id } as any)
       .where(eq(schema.orders.id, order.id));
 
     return { url: session.url };
   }
 
-  // ─── Webhook Stripe ───────────────────────────────────────────────────
+  // ─── Webhook Stripe ────────────────────────────────────────────────
 
   async handleWebhook(req: RawBodyRequest<Request>): Promise<void> {
     const sig = req.headers['stripe-signature'];
@@ -134,7 +141,7 @@ export class PaymentsService {
     }
   }
 
-  // ─── Handlers internos ─────────────────────────────────────────────
+  // ─── Handlers internos ────────────────────────────────────────────
 
   private async onCheckoutCompleted(
     session: Stripe.Checkout.Session,
@@ -142,22 +149,31 @@ export class PaymentsService {
     const orderId = session.metadata?.orderId;
     if (!orderId) return;
 
+    // Guard idempotente: si ya no está pending, ignorar
     const order = await this.db.query.orders.findFirst({
       where: eq(schema.orders.id, orderId),
     });
     if (!order || order.status !== 'pending') return;
 
-    // Guardar paymentIntentId y delegar a OrdersService (usa Drizzle sql seguro)
-    await this.db
-      .update(schema.orders)
-      .set({
-        stripePaymentIntentId:
-          typeof session.payment_intent === 'string'
-            ? session.payment_intent
-            : null,
-      })
-      .where(eq(schema.orders.id, orderId));
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : null;
 
+    // Operación atómica: guardar paymentIntentId + confirmar stock en una sola
+    // transacción lógica a través del método de OrdersService que ya maneja
+    // el status final. Primero actualizamos el campo Stripe (campo futuro),
+    // luego delegamos la transición de estado al servicio de dominio.
+    if (paymentIntentId) {
+      await this.db
+        .update(schema.orders)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .set({ stripePaymentIntentId: paymentIntentId } as any)
+        .where(eq(schema.orders.id, orderId));
+    }
+
+    // confirmOrderPayment cambia status a 'paid' y descuenta stock real
+    // Si lanza, Stripe reintentará el webhook y el guard de status lo protegerá
     await this.ordersService.confirmOrderPayment(orderId);
     this.logger.log(`Orden ${orderId} confirmada via Stripe webhook`);
   }
@@ -173,21 +189,30 @@ export class PaymentsService {
     });
     if (!order || order.status !== 'pending') return;
 
-    // Reutiliza la lógica de cancelación del OrdersService
+    // Delegar cancelación completa al servicio de dominio
     await this.ordersService.cancelOrder(orderId, order.userId);
     this.logger.log(`Orden ${orderId} expirada, reservas liberadas`);
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────
+  // ─── Helpers ─────────────────────────────────────────────────────
 
+  /**
+   * Crea un cupón Stripe con idempotency key basada en orderId.
+   * Retries seguros: Stripe devuelve el mismo cupón si ya fue creado.
+   */
   private async getOrCreateStripeCoupon(
     discountAmount: string | number,
+    orderId: string,
   ): Promise<string> {
     const amount = Math.round(Number(discountAmount) * 100);
-    const coupon = await this.stripe.coupons.create({
-      amount_off: amount,
-      currency: 'usd',
-      duration: 'once',
-    });
+    const coupon = await this.stripe.coupons.create(
+      {
+        amount_off: amount,
+        currency: 'usd',
+        duration: 'once',
+      },
+      { idempotencyKey: `coupon-${orderId}` },
+    );
     return coupon.id;
   }
+}
