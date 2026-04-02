@@ -2,9 +2,9 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { ReputationService } from './reputation.service';
-import { DrizzleService } from '../database/drizzle.service';
-import { products, orderItems, orders } from '../database/schema';
-import { eq, and } from 'drizzle-orm';
+import { DrizzleService } from '../database/database.module';
+import { products, stores } from '../database/schema';
+import { eq } from 'drizzle-orm';
 
 @Processor('reputation')
 export class ReputationProcessor extends WorkerHost {
@@ -23,8 +23,8 @@ export class ReputationProcessor extends WorkerHost {
     let sellerId = rawSellerId;
 
     if (!sellerId) {
-      // Resolver sellerId desde el producto
       const dbInstance = this.db.db;
+
       const [product] = await dbInstance
         .select({ storeId: products.storeId })
         .from(products)
@@ -32,12 +32,10 @@ export class ReputationProcessor extends WorkerHost {
         .limit(1);
 
       if (!product) {
-        this.logger.warn(`Producto ${productId} no encontrado para recálculo de reputación`);
+        this.logger.warn(`Producto ${productId} no encontrado para recálculo`);
         return;
       }
 
-      // Obtener userId del seller desde la store
-      const { stores } = await import('../database/schema');
       const [store] = await dbInstance
         .select({ userId: stores.userId })
         .from(stores)
