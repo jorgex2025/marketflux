@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useCartStore } from '../stores/cart-store';
 import { useCart } from '../hooks/use-cart';
 
 interface Props {
@@ -10,7 +9,7 @@ interface Props {
 }
 
 export function CartDrawer({ open, onClose }: Props) {
-  const { items, total, subtotal, coupon, removeItem, updateQty } = useCart();
+  const { items, total, coupon, removeItem, updateQty } = useCart();
 
   if (!open) return null;
 
@@ -59,6 +58,7 @@ export function CartDrawer({ open, onClose }: Props) {
                   <button
                     onClick={() => updateQty({ id: item.id, qty: item.qty - 1 })}
                     className="rounded border px-1 text-xs hover:bg-gray-100"
+                    disabled={item.qty <= 1}
                   >
                     −
                   </button>
