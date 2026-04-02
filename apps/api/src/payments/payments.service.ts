@@ -34,8 +34,6 @@ export class PaymentsService {
     this.stripe = new Stripe(secretKey, { apiVersion: '2025-01-27.acacia' });
   }
 
-  // ─── Crear Stripe Checkout Session ───────────────────────────────────
-
   async createCheckoutSession(
     dto: CreateCheckoutSessionDto,
     userId: string,
@@ -55,7 +53,7 @@ export class PaymentsService {
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
       order.items.map((item) => ({
-        quantity: item.qty,
+        quantity: item.quantity,
         price_data: {
           currency: 'usd',
           unit_amount: Math.round(Number(item.unitPrice) * 100),
@@ -74,17 +72,15 @@ export class PaymentsService {
       metadata: { orderId: order.id, userId },
     };
 
-    // Descuento: idempotency key basada en orderId para evitar cupones Stripe duplicados
-    if (order.discountAmount && Number(order.discountAmount) > 0) {
+    if (order.discount && Number(order.discount) > 0) {
       const couponId = await this.getOrCreateStripeCoupon(
-        order.discountAmount,
+        order.discount,
         order.id,
       );
       sessionParams.discounts = [{ coupon: couponId }];
     }
 
     const session = await this.stripe.checkout.sessions.create(sessionParams, {
-      // Idempotency key a nivel de session: reuso seguro si el usuario recarga
       idempotencyKey: `checkout-session-${order.id}`,
     });
 
@@ -92,17 +88,14 @@ export class PaymentsService {
       throw new InternalServerErrorException('Stripe no devolvió URL de pago');
     }
 
-    // Guardar stripeSessionId en la orden
+    // Guardar stripeSessionId en la orden — ahora el campo existe en schema
     await this.db
       .update(schema.orders)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .set({ stripeSessionId: session.id } as any)
+      .set({ stripeSessionId: session.id, updatedAt: new Date() })
       .where(eq(schema.orders.id, order.id));
 
     return { url: session.url };
   }
-
-  // ─── Webhook Stripe ────────────────────────────────────────────────
 
   async handleWebhook(req: RawBodyRequest<Request>): Promise<void> {
     const sig = req.headers['stripe-signature'];
@@ -141,15 +134,12 @@ export class PaymentsService {
     }
   }
 
-  // ─── Handlers internos ────────────────────────────────────────────
-
   private async onCheckoutCompleted(
     session: Stripe.Checkout.Session,
   ): Promise<void> {
     const orderId = session.metadata?.orderId;
     if (!orderId) return;
 
-    // Guard idempotente: si ya no está pending, ignorar
     const order = await this.db.query.orders.findFirst({
       where: eq(schema.orders.id, orderId),
     });
@@ -160,20 +150,25 @@ export class PaymentsService {
         ? session.payment_intent
         : null;
 
-    // Operación atómica: guardar paymentIntentId + confirmar stock en una sola
-    // transacción lógica a través del método de OrdersService que ya maneja
-    // el status final. Primero actualizamos el campo Stripe (campo futuro),
-    // luego delegamos la transición de estado al servicio de dominio.
+    // 1. Guardar stripePaymentIntentId en la orden (campo real en schema)
     if (paymentIntentId) {
       await this.db
         .update(schema.orders)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .set({ stripePaymentIntentId: paymentIntentId } as any)
+        .set({ stripePaymentIntentId: paymentIntentId, updatedAt: new Date() })
         .where(eq(schema.orders.id, orderId));
     }
 
-    // confirmOrderPayment cambia status a 'paid' y descuenta stock real
-    // Si lanza, Stripe reintentará el webhook y el guard de status lo protegerá
+    // 2. Insertar registro en tabla payments — necesario para refunds
+    await this.db.insert(schema.payments).values({
+      orderId,
+      provider: 'stripe',
+      externalId: paymentIntentId,
+      status: 'paid',
+      amount: order.total,
+      currency: 'usd',
+    });
+
+    // 3. Confirmar stock y cambiar status a 'paid'
     await this.ordersService.confirmOrderPayment(orderId);
     this.logger.log(`Orden ${orderId} confirmada via Stripe webhook`);
   }
@@ -189,17 +184,10 @@ export class PaymentsService {
     });
     if (!order || order.status !== 'pending') return;
 
-    // Delegar cancelación completa al servicio de dominio
     await this.ordersService.cancelOrder(orderId, order.userId);
     this.logger.log(`Orden ${orderId} expirada, reservas liberadas`);
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────
-
-  /**
-   * Crea un cupón Stripe con idempotency key basada en orderId.
-   * Retries seguros: Stripe devuelve el mismo cupón si ya fue creado.
-   */
   private async getOrCreateStripeCoupon(
     discountAmount: string | number,
     orderId: string,

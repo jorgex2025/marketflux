@@ -7,7 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import * as schema from '../database/schema/index';
 import { DATABASE_TOKEN } from '../database/database.module';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -28,7 +28,7 @@ export class OrdersService {
       throw new BadRequestException('Cart is empty');
     }
 
-    // Validate stock for all items
+    // Validate stock for all items before any write
     for (const item of cart.items) {
       const available = await this.cartService.getAvailableStock(
         item.productId,
@@ -72,37 +72,38 @@ export class OrdersService {
 
     const total = subtotal - discountAmount;
 
-    // Create order
+    // Create order — campo correcto: discount (no discountAmount)
     const [order] = await this.db
       .insert(schema.orders)
       .values({
         userId,
         status: 'pending',
         subtotal: subtotal.toFixed(2),
-        discountAmount: discountAmount.toFixed(2),
+        discount: discountAmount.toFixed(2),
         total: total.toFixed(2),
         couponCode: cart.couponCode ?? null,
         shippingMethodId: dto.shippingMethodId ?? null,
-        shippingAddress: dto.shippingAddress ?? null,
+        shippingAddressId: dto.shippingAddressId ?? null,
       })
       .returning();
 
-    // Create order items with commission snapshot
+    // Create order items — campo correcto: quantity (no qty)
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     for (const item of cart.items) {
+      const itemTotal = (Number(item.unitPrice) * item.qty).toFixed(2);
       const [orderItem] = await this.db
         .insert(schema.orderItems)
         .values({
           orderId: order.id,
           productId: item.productId,
           variantId: item.variantId ?? null,
-          qty: item.qty,
+          quantity: item.qty,
           unitPrice: item.unitPrice,
-          commissionRate: globalRate, // snapshot — immutable
+          total: itemTotal,
+          commissionRate: globalRate,
         })
         .returning();
 
-      // Create inventory reservation
       await this.db.insert(schema.inventoryReservations).values({
         productId: item.productId,
         variantId: item.variantId ?? null,
@@ -114,7 +115,6 @@ export class OrdersService {
       });
     }
 
-    // Increment coupon usage if applied
     if (coupon) {
       await this.db
         .update(schema.coupons)
@@ -122,7 +122,6 @@ export class OrdersService {
         .where(eq(schema.coupons.id, coupon.id));
     }
 
-    // Mark cart as ordered
     await this.db
       .update(schema.carts)
       .set({ status: 'ordered' })
@@ -169,7 +168,6 @@ export class OrdersService {
       throw new BadRequestException('Only pending orders can be cancelled');
     }
 
-    // Release reservations and restore stock
     const reservations = await this.db.query.inventoryReservations.findMany({
       where: and(
         eq(schema.inventoryReservations.orderId, orderId),
@@ -198,7 +196,7 @@ export class OrdersService {
 
     const [updated] = await this.db
       .update(schema.orders)
-      .set({ status: 'cancelled' })
+      .set({ status: 'cancelled', updatedAt: new Date() })
       .where(eq(schema.orders.id, orderId))
       .returning();
 
@@ -226,7 +224,6 @@ export class OrdersService {
     return { data: { eligible: !existing, reason: existing ? 'Already reviewed' : null } };
   }
 
-  // Called by webhook (Phase 5) — confirms reservations and deducts real stock
   async confirmOrderPayment(orderId: string) {
     const reservations = await this.db.query.inventoryReservations.findMany({
       where: and(
@@ -256,7 +253,7 @@ export class OrdersService {
 
     await this.db
       .update(schema.orders)
-      .set({ status: 'paid' })
+      .set({ status: 'paid', updatedAt: new Date() })
       .where(eq(schema.orders.id, orderId));
   }
 }

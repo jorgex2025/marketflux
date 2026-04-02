@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -65,6 +66,7 @@ export class ReviewsService {
   async create(userId: string, dto: CreateReviewDto) {
     const db = this.db.db;
 
+    // 1. Verificar que compró el producto en una orden entregada
     const eligible = await db
       .select({ id: orders.id })
       .from(orders)
@@ -82,6 +84,17 @@ export class ReviewsService {
       throw new BadRequestException(
         'Solo puedes reseñar productos de órdenes entregadas',
       );
+    }
+
+    // 2. Verificar que no haya reseñado ya este producto (deduplicación)
+    const existing = await db.query.reviews.findFirst({
+      where: and(
+        eq(reviews.userId, userId),
+        eq(reviews.productId, dto.productId),
+      ),
+    });
+    if (existing) {
+      throw new ConflictException('Ya reseñaste este producto');
     }
 
     const [review] = await db
@@ -145,7 +158,6 @@ export class ReviewsService {
       .limit(1);
     if (!review) throw new NotFoundException('Review no encontrada');
 
-    // Verificar propiedad: seller debe ser dueño de la store del producto
     const [product] = await db
       .select({ storeId: products.storeId })
       .from(products)
@@ -153,7 +165,6 @@ export class ReviewsService {
       .limit(1);
     if (!product) throw new NotFoundException('Producto no encontrado');
 
-    // Verificar que el sellerId es dueño de la store
     const { stores } = await import('../database/schema');
     const [store] = await db
       .select({ userId: stores.userId })
