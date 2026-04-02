@@ -4,16 +4,24 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true es requerido por Stripe para verificar la firma del webhook
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
   );
-  app.enableCors({ origin: process.env['FRONTEND_URL'] || 'http://localhost:3000' });
+  app.enableCors({
+    origin: process.env['FRONTEND_URL'] ?? 'http://localhost:3000',
+    credentials: true,
+  });
 
-  await app.listen(process.env['PORT'] || 3001);
-  console.log(`API running on :${process.env['PORT'] || 3001}`);
+  await app.listen(process.env['PORT'] ?? 3001);
+  console.log(`API running on :${process.env['PORT'] ?? 3001}`);
 }
 
-bootstrap();
+void bootstrap();

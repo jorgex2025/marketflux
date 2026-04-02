@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { StorageModule } from './storage/storage.module';
 import { DatabaseModule } from './database/database.module';
@@ -29,6 +30,8 @@ import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
+    // ConfigModule global — carga .env en todos los módulos
+    ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
     AuthModule,
     StorageModule,
