@@ -5,10 +5,17 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
-import { returns, orders } from '../database/schema';
+import {
+  returns,
+  orders,
+  orderItems,
+  payments,
+} from '../database/schema';
 import { eq, and } from 'drizzle-orm';
 import Stripe from 'stripe';
 import { CreateReturnDto } from './dto/create-return.dto';
+
+const STRIPE_API_VERSION = '2025-01-27.acacia' as const;
 
 @Injectable()
 export class ReturnsService {
@@ -16,12 +23,11 @@ export class ReturnsService {
 
   constructor(private readonly db: DatabaseService) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
-      apiVersion: '2025-01-27.acacia',
+      apiVersion: STRIPE_API_VERSION,
     });
   }
 
   async create(dto: CreateReturnDto, buyerId: string) {
-    // Verify order belongs to buyer and is delivered
     const [order] = await this.db.client
       .select()
       .from(orders)
@@ -41,7 +47,7 @@ export class ReturnsService {
         buyerId,
         reason: dto.reason,
         description: dto.description,
-        evidence: dto.evidence ?? null,
+        evidence: dto.evidence ? [dto.evidence] : [],
         status: 'pending',
       })
       .returning();
@@ -57,15 +63,36 @@ export class ReturnsService {
     return { data };
   }
 
+  /**
+   * Para sellers: filtra returns cuya order contiene items de sus productos.
+   * La tabla returns NO tiene seller_id; el seller se deriva via
+   * returns → orders → order_items → products → stores (userId = sellerId).
+   */
   async findAll(userId: string, role: string) {
-    const data =
-      role === 'admin'
-        ? await this.db.client.select().from(returns)
-        : await this.db.client
-            .select()
-            .from(returns)
-            .where(eq(returns.sellerId, userId));
-    return { data };
+    if (role === 'admin') {
+      const data = await this.db.client.select().from(returns);
+      return { data };
+    }
+
+    // JOIN path: returns → orders → orderItems → products → stores
+    const { products: productsTable, stores } =
+      await import('../database/schema');
+
+    const rows = await this.db.client
+      .selectDistinct({ ret: returns })
+      .from(returns)
+      .innerJoin(orders, eq(orders.id, returns.orderId))
+      .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
+      .innerJoin(productsTable, eq(productsTable.id, orderItems.productId))
+      .innerJoin(
+        stores,
+        and(
+          eq(stores.id, productsTable.storeId),
+          eq(stores.userId, userId),
+        ),
+      );
+
+    return { data: rows.map((r) => r.ret) };
   }
 
   async findOne(id: string, userId: string, role: string) {
@@ -74,11 +101,29 @@ export class ReturnsService {
       .from(returns)
       .where(eq(returns.id, id));
     if (!returnRecord) throw new NotFoundException(`Return ${id} not found`);
-    const isParticipant =
-      role === 'admin' ||
-      returnRecord.buyerId === userId ||
-      returnRecord.sellerId === userId;
-    if (!isParticipant) throw new ForbiddenException('Access denied');
+
+    // Participant check: admin | buyer | seller (via order ownership)
+    if (role === 'admin' || returnRecord.buyerId === userId) {
+      return { data: returnRecord };
+    }
+
+    // Check if seller owns any product in this order
+    const { products: productsTable, stores } =
+      await import('../database/schema');
+    const [sellerRow] = await this.db.client
+      .select({ storeId: stores.id })
+      .from(orderItems)
+      .innerJoin(productsTable, eq(productsTable.id, orderItems.productId))
+      .innerJoin(
+        stores,
+        and(
+          eq(stores.id, productsTable.storeId),
+          eq(stores.userId, userId),
+        ),
+      )
+      .where(eq(orderItems.orderId, returnRecord.orderId));
+
+    if (!sellerRow) throw new ForbiddenException('Access denied');
     return { data: returnRecord };
   }
 
@@ -88,12 +133,29 @@ export class ReturnsService {
       .from(returns)
       .where(eq(returns.id, id));
     if (!returnRecord) throw new NotFoundException(`Return ${id} not found`);
-    if (role !== 'admin' && returnRecord.sellerId !== userId) {
-      throw new ForbiddenException('Not your return to approve');
+
+    // Only admin bypasses seller check; seller ownership via order
+    if (role !== 'admin') {
+      const { products: productsTable, stores } =
+        await import('../database/schema');
+      const [sellerRow] = await this.db.client
+        .select({ storeId: stores.id })
+        .from(orderItems)
+        .innerJoin(productsTable, eq(productsTable.id, orderItems.productId))
+        .innerJoin(
+          stores,
+          and(
+            eq(stores.id, productsTable.storeId),
+            eq(stores.userId, userId),
+          ),
+        )
+        .where(eq(orderItems.orderId, returnRecord.orderId));
+      if (!sellerRow) throw new ForbiddenException('Not your return to approve');
     }
+
     const [updated] = await this.db.client
       .update(returns)
-      .set({ status: 'approved' })
+      .set({ status: 'approved', updatedAt: new Date() })
       .where(eq(returns.id, id))
       .returning();
     return { data: updated };
@@ -105,17 +167,37 @@ export class ReturnsService {
       .from(returns)
       .where(eq(returns.id, id));
     if (!returnRecord) throw new NotFoundException(`Return ${id} not found`);
-    if (role !== 'admin' && returnRecord.sellerId !== userId) {
-      throw new ForbiddenException('Not your return to reject');
+
+    if (role !== 'admin') {
+      const { products: productsTable, stores } =
+        await import('../database/schema');
+      const [sellerRow] = await this.db.client
+        .select({ storeId: stores.id })
+        .from(orderItems)
+        .innerJoin(productsTable, eq(productsTable.id, orderItems.productId))
+        .innerJoin(
+          stores,
+          and(
+            eq(stores.id, productsTable.storeId),
+            eq(stores.userId, userId),
+          ),
+        )
+        .where(eq(orderItems.orderId, returnRecord.orderId));
+      if (!sellerRow) throw new ForbiddenException('Not your return to reject');
     }
+
     const [updated] = await this.db.client
       .update(returns)
-      .set({ status: 'rejected', rejectionReason: reason })
+      .set({ status: 'rejected', updatedAt: new Date() })
       .where(eq(returns.id, id))
       .returning();
     return { data: updated };
   }
 
+  /**
+   * Ejecuta refund vía Stripe usando el externalId (PaymentIntent ID)
+   * guardado en la tabla payments para esta order.
+   */
   async refund(id: string, _adminId: string) {
     const [returnRecord] = await this.db.client
       .select()
@@ -125,20 +207,34 @@ export class ReturnsService {
     if (returnRecord.status !== 'approved') {
       throw new BadRequestException('Return must be approved before refunding');
     }
-    if (!returnRecord.stripePaymentIntentId) {
-      throw new BadRequestException('No Stripe payment intent linked to this return');
+
+    // Buscar el PaymentIntent en la tabla payments (externalId = Stripe PI id)
+    const [payment] = await this.db.client
+      .select()
+      .from(payments)
+      .where(
+        and(
+          eq(payments.orderId, returnRecord.orderId),
+          eq(payments.provider, 'stripe'),
+        ),
+      );
+
+    if (!payment?.externalId) {
+      throw new BadRequestException(
+        'No Stripe payment found for this order. Cannot refund.',
+      );
     }
 
     const refund = await this.stripe.refunds.create({
-      payment_intent: returnRecord.stripePaymentIntentId,
+      payment_intent: payment.externalId,
     });
 
     const [updated] = await this.db.client
       .update(returns)
-      .set({ status: 'refunded', stripeRefundId: refund.id })
+      .set({ status: 'refunded', updatedAt: new Date() })
       .where(eq(returns.id, id))
       .returning();
 
-    return { data: updated };
+    return { data: { ...updated, stripeRefundId: refund.id } };
   }
 }

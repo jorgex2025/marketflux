@@ -50,7 +50,7 @@ export default function AdminDisputesPage() {
             <p className="text-sm text-gray-600">{d.description}</p>
             <span
               className={`text-xs px-2 py-0.5 rounded mt-1 inline-block ${
-                d.status === 'open'
+                d.status === 'open' || d.status === 'under_review'
                   ? 'bg-yellow-100 text-yellow-700'
                   : 'bg-green-100 text-green-700'
               }`}
@@ -60,17 +60,18 @@ export default function AdminDisputesPage() {
             {d.resolution && (
               <p className="text-xs text-gray-500 mt-1">Resolution: {d.resolution}</p>
             )}
-            {d.status === 'open' && (
-              <div className="flex gap-2 mt-2">
+            {(d.status === 'open' || d.status === 'under_review') && (
+              <div className="flex gap-2 mt-3">
                 <button
                   onClick={() =>
                     resolve.mutate({
                       id: d.id,
-                      status: 'resolved_buyer',
+                      status: 'resolved',
                       resolution: 'Resolved in favor of buyer',
                     })
                   }
-                  className="bg-blue-600 text-white text-sm px-3 py-1 rounded hover:bg-blue-700"
+                  disabled={resolve.isPending}
+                  className="bg-blue-600 text-white text-sm px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
                 >
                   Favor Buyer
                 </button>
@@ -78,13 +79,27 @@ export default function AdminDisputesPage() {
                   onClick={() =>
                     resolve.mutate({
                       id: d.id,
-                      status: 'resolved_seller',
+                      status: 'resolved',
                       resolution: 'Resolved in favor of seller',
                     })
                   }
-                  className="bg-orange-600 text-white text-sm px-3 py-1 rounded hover:bg-orange-700"
+                  disabled={resolve.isPending}
+                  className="bg-orange-600 text-white text-sm px-3 py-1 rounded hover:bg-orange-700 disabled:opacity-50"
                 >
                   Favor Seller
+                </button>
+                <button
+                  onClick={() =>
+                    resolve.mutate({
+                      id: d.id,
+                      status: 'closed',
+                      resolution: 'Closed without resolution',
+                    })
+                  }
+                  disabled={resolve.isPending}
+                  className="bg-gray-500 text-white text-sm px-3 py-1 rounded hover:bg-gray-600 disabled:opacity-50"
+                >
+                  Close
                 </button>
               </div>
             )}
