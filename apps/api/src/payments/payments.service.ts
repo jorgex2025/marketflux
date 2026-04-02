@@ -4,22 +4,17 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
-  RawBodyRequest,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectDrizzle } from '../database/drizzle.decorator';
-import type { DrizzleDb } from '../database/drizzle.types';
-import { eq } from 'drizzle-orm';
-import {
-  orders,
-  orderItems,
-  inventoryReservations,
-  products,
-  productVariants,
-  users,
-} from '../database/schema';
-import Stripe from 'stripe';
+import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
+import { eq, and } from 'drizzle-orm';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { Inject } from '@nestjs/common';
+import { DATABASE_TOKEN } from '../database/database.module';
+import * as schema from '../database/schema/index';
+import { OrdersService } from '../orders/orders.service';
+import Stripe from 'stripe';
 import type { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
 
 @Injectable()
@@ -29,22 +24,24 @@ export class PaymentsService {
   private readonly webhookSecret: string;
 
   constructor(
-    @InjectDrizzle() private readonly db: DrizzleDb,
+    @Inject(DATABASE_TOKEN)
+    private readonly db: NodePgDatabase<typeof schema>,
     private readonly config: ConfigService,
+    private readonly ordersService: OrdersService,
   ) {
     const secretKey = this.config.getOrThrow<string>('STRIPE_SECRET_KEY');
     this.webhookSecret = this.config.getOrThrow<string>('STRIPE_WEBHOOK_SECRET');
     this.stripe = new Stripe(secretKey, { apiVersion: '2025-01-27.acacia' });
   }
 
-  // ─── Crear Stripe Checkout Session ─────────────────────────────────────
+  // ─── Crear Stripe Checkout Session ────────────────────────────────────
 
   async createCheckoutSession(
     dto: CreateCheckoutSessionDto,
     userId: string,
   ): Promise<{ url: string }> {
     const order = await this.db.query.orders.findFirst({
-      where: eq(orders.id, dto.orderId),
+      where: eq(schema.orders.id, dto.orderId),
       with: { items: { with: { product: true } } },
     });
 
@@ -54,8 +51,7 @@ export class PaymentsService {
       throw new BadRequestException('La orden no está en estado pendiente');
     }
 
-    const webUrl =
-      this.config.get<string>('WEB_URL') ?? 'http://localhost:3000';
+    const webUrl = this.config.get<string>('WEB_URL') ?? 'http://localhost:3000';
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
       order.items.map((item) => ({
@@ -65,52 +61,41 @@ export class PaymentsService {
           unit_amount: Math.round(Number(item.unitPrice) * 100),
           product_data: {
             name: item.product?.name ?? `Producto ${item.productId}`,
-            ...(item.product?.imageUrls?.[0]
-              ? { images: [item.product.imageUrls[0]] }
-              : {}),
           },
         },
       }));
 
-    const session = await this.stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: lineItems,
-      success_url:
-        dto.successUrl ??
-        `${webUrl}/orders/${order.id}?payment=success`,
-      cancel_url:
-        dto.cancelUrl ?? `${webUrl}/checkout?payment=cancelled`,
+      success_url: dto.successUrl ?? `${webUrl}/orders/${order.id}?payment=success`,
+      cancel_url: dto.cancelUrl ?? `${webUrl}/checkout?payment=cancelled`,
       metadata: { orderId: order.id, userId },
-      ...(order.discountAmount && Number(order.discountAmount) > 0
-        ? {
-            discounts: [
-              {
-                coupon: await this.getOrCreateStripeCoupon(
-                  order.discountAmount,
-                ),
-              },
-            ],
-          }
-        : {}),
-    });
+    };
+
+    // Aplicar descuento si existe
+    if (order.discountAmount && Number(order.discountAmount) > 0) {
+      const coupon = await this.getOrCreateStripeCoupon(order.discountAmount);
+      sessionParams.discounts = [{ coupon }];
+    }
+
+    const session = await this.stripe.checkout.sessions.create(sessionParams);
 
     if (!session.url) {
-      throw new InternalServerErrorException(
-        'Stripe no devolveró URL de pago',
-      );
+      throw new InternalServerErrorException('Stripe no devolvió URL de pago');
     }
 
     // Guardar stripeSessionId en la orden
     await this.db
-      .update(orders)
+      .update(schema.orders)
       .set({ stripeSessionId: session.id })
-      .where(eq(orders.id, order.id));
+      .where(eq(schema.orders.id, order.id));
 
     return { url: session.url };
   }
 
-  // ─── Webhook Stripe ─────────────────────────────────────────────────────
+  // ─── Webhook Stripe ───────────────────────────────────────────────────
 
   async handleWebhook(req: RawBodyRequest<Request>): Promise<void> {
     const sig = req.headers['stripe-signature'];
@@ -149,7 +134,7 @@ export class PaymentsService {
     }
   }
 
-  // ─── Handlers internos ──────────────────────────────────────────────────
+  // ─── Handlers internos ─────────────────────────────────────────────
 
   private async onCheckoutCompleted(
     session: Stripe.Checkout.Session,
@@ -158,47 +143,22 @@ export class PaymentsService {
     if (!orderId) return;
 
     const order = await this.db.query.orders.findFirst({
-      where: eq(orders.id, orderId),
-      with: { items: true },
+      where: eq(schema.orders.id, orderId),
     });
     if (!order || order.status !== 'pending') return;
 
-    // 1. Confirmar orden
+    // Guardar paymentIntentId y delegar a OrdersService (usa Drizzle sql seguro)
     await this.db
-      .update(orders)
-      .set({ status: 'confirmed', stripePaymentIntentId: session.payment_intent as string })
-      .where(eq(orders.id, orderId));
+      .update(schema.orders)
+      .set({
+        stripePaymentIntentId:
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : null,
+      })
+      .where(eq(schema.orders.id, orderId));
 
-    // 2. Descontar stock real y liberar reservas
-    for (const item of order.items) {
-      if (item.variantId) {
-        await this.db
-          .update(productVariants)
-          .set({
-            stock: this.db
-              .select({ stock: productVariants.stock })
-              .from(productVariants)
-              .where(eq(productVariants.id, item.variantId))
-              .then(() => undefined) as unknown as number,
-          })
-          .where(eq(productVariants.id, item.variantId));
-        // Stock real usando SQL expr
-        await this.db.execute(
-          `UPDATE product_variants SET stock = stock - ${item.qty} WHERE id = '${item.variantId}'`,
-        );
-      } else {
-        await this.db.execute(
-          `UPDATE products SET stock = stock - ${item.qty} WHERE id = '${item.productId}'`,
-        );
-      }
-
-      // Liberar reservas del order item
-      await this.db
-        .update(inventoryReservations)
-        .set({ status: 'confirmed' })
-        .where(eq(inventoryReservations.orderId, orderId));
-    }
-
+    await this.ordersService.confirmOrderPayment(orderId);
     this.logger.log(`Orden ${orderId} confirmada via Stripe webhook`);
   }
 
@@ -209,42 +169,16 @@ export class PaymentsService {
     if (!orderId) return;
 
     const order = await this.db.query.orders.findFirst({
-      where: eq(orders.id, orderId),
+      where: eq(schema.orders.id, orderId),
     });
     if (!order || order.status !== 'pending') return;
 
-    // Cancelar orden y liberar reservas
-    await this.db
-      .update(orders)
-      .set({ status: 'cancelled' })
-      .where(eq(orders.id, orderId));
-
-    await this.db
-      .update(inventoryReservations)
-      .set({ status: 'released' })
-      .where(eq(inventoryReservations.orderId, orderId));
-
-    // Restaurar stock
-    const orderWithItems = await this.db.query.orders.findFirst({
-      where: eq(orders.id, orderId),
-      with: { items: true },
-    });
-    for (const item of orderWithItems?.items ?? []) {
-      if (item.variantId) {
-        await this.db.execute(
-          `UPDATE product_variants SET stock = stock + ${item.qty} WHERE id = '${item.variantId}'`,
-        );
-      } else {
-        await this.db.execute(
-          `UPDATE products SET stock = stock + ${item.qty} WHERE id = '${item.productId}'`,
-        );
-      }
-    }
-
+    // Reutiliza la lógica de cancelación del OrdersService
+    await this.ordersService.cancelOrder(orderId, order.userId);
     this.logger.log(`Orden ${orderId} expirada, reservas liberadas`);
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
+  // ─── Helpers ──────────────────────────────────────────────────────
 
   private async getOrCreateStripeCoupon(
     discountAmount: string | number,
@@ -257,4 +191,3 @@ export class PaymentsService {
     });
     return coupon.id;
   }
-}
