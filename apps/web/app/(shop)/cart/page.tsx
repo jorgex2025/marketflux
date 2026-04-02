@@ -61,7 +61,8 @@ export default function CartPage() {
                       onClick={() =>
                         updateQty({ id: item.id, qty: item.qty - 1 })
                       }
-                      className="rounded border px-2 py-0.5 hover:bg-gray-100"
+                      disabled={item.qty <= 1}
+                      className="rounded border px-2 py-0.5 hover:bg-gray-100 disabled:opacity-40"
                     >
                       −
                     </button>

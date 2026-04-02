@@ -16,34 +16,33 @@ export interface Coupon {
   discountAmount: number;
 }
 
-interface CartState {
+export interface CartState {
   items: CartItem[];
   coupon: Coupon | null;
   hydrateCart: (payload: { items: CartItem[]; coupon: Coupon | null }) => void;
   clearCart: () => void;
-  subtotal: () => number;
-  total: () => number;
 }
 
 export const useCartStore = create<CartState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       items: [],
       coupon: null,
 
       hydrateCart: ({ items, coupon }) => set({ items, coupon }),
 
       clearCart: () => set({ items: [], coupon: null }),
-
-      subtotal: () =>
-        get().items.reduce((acc, item) => acc + item.price * item.qty, 0),
-
-      total: () => {
-        const sub = get().subtotal();
-        const discount = get().coupon?.discountAmount ?? 0;
-        return Math.max(0, sub - discount);
-      },
     }),
     { name: 'marketflux-cart' },
   ),
 );
+
+// ─── Selectores puros (no se serializan con persist) ───────────────────────
+
+export const selectSubtotal = (s: CartState): number =>
+  s.items.reduce((acc, item) => acc + item.price * item.qty, 0);
+
+export const selectTotal = (s: CartState): number => {
+  const sub = s.items.reduce((acc, item) => acc + item.price * item.qty, 0);
+  return Math.max(0, sub - (s.coupon?.discountAmount ?? 0));
+};

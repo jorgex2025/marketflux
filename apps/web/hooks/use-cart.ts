@@ -2,7 +2,13 @@
 
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCartStore, type CartItem, type Coupon } from '../stores/cart-store';
+import {
+  useCartStore,
+  selectSubtotal,
+  selectTotal,
+  type CartItem,
+  type Coupon,
+} from '../stores/cart-store';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -83,17 +89,15 @@ export function useCart() {
   const hydrateCart = useCartStore((s) => s.hydrateCart);
   const items = useCartStore((s) => s.items);
   const coupon = useCartStore((s) => s.coupon);
-  const subtotal = useCartStore((s) => s.subtotal());
-  const total = useCartStore((s) => s.total());
+  const subtotal = useCartStore(selectSubtotal);
+  const total = useCartStore(selectTotal);
 
-  // Fuente de verdad: backend
   const query = useQuery({
     queryKey: ['cart'],
     queryFn: () => apiFetch<CartResponse>('/api/cart'),
     staleTime: 30_000,
   });
 
-  // Sincronizar store desde respuesta del servidor (en efecto, no durante render)
   useEffect(() => {
     if (query.data) {
       hydrateCart(mapServerCart(query.data));

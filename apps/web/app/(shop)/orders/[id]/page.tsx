@@ -23,11 +23,13 @@ interface OrderDetail {
   couponCode?: string;
 }
 
-async function fetchOrder(id: string): Promise<{ data: OrderDetail }> {
-  const res = await fetch(`${API}/api/orders/${id}`, { credentials: 'include' });
-  if (!res.ok) throw new Error('Orden no encontrada');
-  return res.json() as Promise<{ data: OrderDetail }>;
-}
+const STATUS_LABEL: Record<string, string> = {
+  pending: 'Pendiente',
+  confirmed: 'Confirmado',
+  shipped: 'Enviado',
+  delivered: 'Entregado',
+  cancelled: 'Cancelado',
+};
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -36,6 +38,12 @@ const STATUS_COLOR: Record<string, string> = {
   delivered: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-600',
 };
+
+async function fetchOrder(id: string): Promise<{ data: OrderDetail }> {
+  const res = await fetch(`${API}/api/orders/${id}`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Orden no encontrada');
+  return res.json() as Promise<{ data: OrderDetail }>;
+}
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -94,10 +102,10 @@ export default function OrderDetailPage() {
         <h1 className="text-xl font-bold">Orden # {order.id.slice(0, 8)}…</h1>
         <span
           className={`rounded-full px-3 py-1 text-xs font-medium ${
-            STATUS_COLOR[order.status] ?? 'bg-gray-100'
+            STATUS_COLOR[order.status] ?? 'bg-gray-100 text-gray-600'
           }`}
         >
-          {order.status}
+          {STATUS_LABEL[order.status] ?? order.status}
         </span>
       </div>
 
