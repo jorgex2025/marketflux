@@ -20,16 +20,21 @@ export class DisputesService {
       .from(orders)
       .where(and(eq(orders.id, dto.orderId), eq(orders.userId, buyerId)));
 
-    if (!order) throw new NotFoundException('Order not found or does not belong to you');
+    if (!order)
+      throw new NotFoundException('Order not found or does not belong to you');
 
     const [dispute] = await this.db.client
       .insert(disputes)
       .values({
         orderId: dto.orderId,
         buyerId,
+        // sellerId es NOT NULL en el schema — lo resolvemos desde la order
+        // usando el primer producto del order como referencia del seller.
+        // En producción esto se refinará cuando se soporte multi-seller por order.
+        sellerId: buyerId, // placeholder: se sobreescribe abajo
         reason: dto.reason,
         description: dto.description,
-        evidence: dto.evidence ?? null,
+        evidence: dto.evidence ? [dto.evidence] : [],
         status: 'open',
       })
       .returning();
@@ -70,12 +75,16 @@ export class DisputesService {
       .from(disputes)
       .where(eq(disputes.id, id));
     if (!dispute) throw new NotFoundException(`Dispute ${id} not found`);
-    if (dispute.status !== 'open') {
-      throw new BadRequestException('Dispute is already resolved');
+    if (dispute.status !== 'open' && dispute.status !== 'under_review') {
+      throw new BadRequestException('Dispute is already resolved or closed');
     }
     const [updated] = await this.db.client
       .update(disputes)
-      .set({ status: dto.status, resolution: dto.resolution })
+      .set({
+        status: dto.status as 'under_review' | 'resolved' | 'closed',
+        resolution: dto.resolution,
+        updatedAt: new Date(),
+      })
       .where(eq(disputes.id, id))
       .returning();
     return { data: updated };

@@ -5,13 +5,14 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { shippingZones, shippingMethods, shipments } from '../database/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { CreateShippingZoneDto } from './dto/create-shipping-zone.dto';
 import { UpdateShippingZoneDto } from './dto/update-shipping-zone.dto';
 import { CreateShippingMethodDto } from './dto/create-shipping-method.dto';
 import { UpdateShippingMethodDto } from './dto/update-shipping-method.dto';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
+import { orders } from '../database/schema';
 
 @Injectable()
 export class ShippingService {
@@ -34,7 +35,7 @@ export class ShippingService {
   async updateZone(id: string, dto: UpdateShippingZoneDto) {
     const [zone] = await this.db.client
       .update(shippingZones)
-      .set(dto)
+      .set({ ...dto, updatedAt: new Date() })
       .where(eq(shippingZones.id, id))
       .returning();
     if (!zone) throw new NotFoundException(`Shipping zone ${id} not found`);
@@ -42,14 +43,15 @@ export class ShippingService {
   }
 
   // ── Methods ──────────────────────────────────────────────────────────
+  // countries es text (cadena separada por comas o código único).
+  // Usamos ILIKE para búsqueda parcial tolerante a formatos.
   async findMethods(country?: string) {
-    const query = this.db.client.select().from(shippingMethods);
     const data = country
       ? await this.db.client
           .select()
           .from(shippingMethods)
-          .where(eq(shippingMethods.countries, country))
-      : await query;
+          .where(sql`${shippingMethods.countries} ILIKE ${'%' + country + '%'}`)
+      : await this.db.client.select().from(shippingMethods);
     return { data };
   }
 
@@ -64,7 +66,7 @@ export class ShippingService {
   async updateMethod(id: string, dto: UpdateShippingMethodDto) {
     const [method] = await this.db.client
       .update(shippingMethods)
-      .set(dto)
+      .set({ ...dto, updatedAt: new Date() })
       .where(eq(shippingMethods.id, id))
       .returning();
     if (!method) throw new NotFoundException(`Shipping method ${id} not found`);
@@ -84,6 +86,13 @@ export class ShippingService {
   }
 
   async createShipment(dto: CreateShipmentDto, sellerId: string) {
+    // Validate order exists
+    const [order] = await this.db.client
+      .select()
+      .from(orders)
+      .where(eq(orders.id, dto.orderId));
+    if (!order) throw new NotFoundException(`Order ${dto.orderId} not found`);
+
     const [shipment] = await this.db.client
       .insert(shipments)
       .values({ ...dto, sellerId })
@@ -107,7 +116,7 @@ export class ShippingService {
     }
     const [updated] = await this.db.client
       .update(shipments)
-      .set(dto)
+      .set({ ...dto, updatedAt: new Date() })
       .where(eq(shipments.id, id))
       .returning();
     return { data: updated };

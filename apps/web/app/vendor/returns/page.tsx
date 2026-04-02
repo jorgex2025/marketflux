@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/lib/api-client';
 
@@ -14,10 +15,12 @@ type ReturnRecord = {
 
 export default function VendorReturnsPage() {
   const qc = useQueryClient();
+  const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
 
   const { data, isLoading } = useQuery({
     queryKey: ['vendor-returns'],
-    queryFn: () => apiClient.get<{ data: ReturnRecord[] }>('/returns').then((r) => r.data.data),
+    queryFn: () =>
+      apiClient.get<{ data: ReturnRecord[] }>('/returns').then((r) => r.data.data),
   });
 
   const approve = useMutation({
@@ -54,20 +57,38 @@ export default function VendorReturnsPage() {
             >
               {r.status}
             </span>
+
             {r.status === 'pending' && (
-              <div className="flex gap-2 mt-2">
+              <div className="mt-3 space-y-2">
                 <button
                   onClick={() => approve.mutate(r.id)}
-                  className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700"
+                  disabled={approve.isPending}
+                  className="bg-green-600 text-white text-sm px-3 py-1 rounded hover:bg-green-700 disabled:opacity-50"
                 >
                   Approve
                 </button>
-                <button
-                  onClick={() => reject.mutate({ id: r.id, reason: 'Does not qualify' })}
-                  className="bg-red-600 text-white text-sm px-3 py-1 rounded hover:bg-red-700"
-                >
-                  Reject
-                </button>
+
+                <div className="flex gap-2 items-center">
+                  <input
+                    className="border rounded px-2 py-1 text-sm flex-1"
+                    placeholder="Rejection reason…"
+                    value={rejectReasons[r.id] ?? ''}
+                    onChange={(e) =>
+                      setRejectReasons((prev) => ({ ...prev, [r.id]: e.target.value }))
+                    }
+                  />
+                  <button
+                    onClick={() => {
+                      const reason = rejectReasons[r.id]?.trim();
+                      if (!reason) return;
+                      reject.mutate({ id: r.id, reason });
+                    }}
+                    disabled={reject.isPending || !rejectReasons[r.id]?.trim()}
+                    className="bg-red-600 text-white text-sm px-3 py-1 rounded hover:bg-red-700 disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                </div>
               </div>
             )}
           </li>
