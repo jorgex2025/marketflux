@@ -9,6 +9,7 @@ import { EmailProcessor, EMAIL_QUEUE } from './processors/email.processor';
 import { PayoutProcessor, PAYOUT_QUEUE } from './processors/payout.processor';
 import { OrderExpiryProcessor, ORDER_EXPIRY_QUEUE } from './processors/order-expiry.processor';
 import { IndexingProcessor, INDEXING_QUEUE } from './processors/indexing.processor';
+import { NotificationProcessor, NOTIFICATION_QUEUE } from './processors/notification.processor';
 
 import { CronSchedulerService } from './cron-scheduler.service';
 
@@ -27,6 +28,7 @@ import { CronSchedulerService } from './cron-scheduler.service';
       { name: PAYOUT_QUEUE },
       { name: ORDER_EXPIRY_QUEUE },
       { name: INDEXING_QUEUE },
+      { name: NOTIFICATION_QUEUE },
     ),
     DatabaseModule,
     NotificationsModule,
@@ -38,6 +40,7 @@ import { CronSchedulerService } from './cron-scheduler.service';
     PayoutProcessor,
     OrderExpiryProcessor,
     IndexingProcessor,
+    NotificationProcessor,
   ],
   exports: [BullModule],
 })
