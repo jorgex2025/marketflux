@@ -14,9 +14,9 @@ export interface ReputationJobData {
 
 type ReputationBadge = 'none' | 'rising' | 'trusted' | 'top_seller';
 
-function calcBadge(score: number, avgRating: number): ReputationBadge {
-  if (score >= 80 && avgRating >= 4.5) return 'top_seller';
-  if (score >= 60 && avgRating >= 4.0) return 'trusted';
+function calcBadge(score: number, avgRatingVal: number): ReputationBadge {
+  if (score >= 80 && avgRatingVal >= 4.5) return 'top_seller';
+  if (score >= 60 && avgRatingVal >= 4.0) return 'trusted';
   if (score >= 30) return 'rising';
   return 'none';
 }
@@ -35,7 +35,7 @@ export class ReputationProcessor extends WorkerHost {
     const { sellerId } = job.data;
     this.logger.log(`Recalculating reputation for seller ${sellerId}`);
 
-    // 1. avgRating — average of approved reviews for this seller's products
+    // 1. avgRating — promedio de reviews aprobadas de productos del seller
     const [ratingRow] = await this.db
       .select({ avgRating: avg(schema.reviews.rating) })
       .from(schema.reviews)
@@ -47,15 +47,20 @@ export class ReputationProcessor extends WorkerHost {
           eq(schema.reviews.status, 'approved'),
         ),
       );
-    const avgRating = parseFloat(ratingRow?.avgRating ?? '0');
+    const avgRatingVal = parseFloat(ratingRow?.avgRating ?? '0');
 
-    // 2. responseRate — % of approved reviews that have a sellerReply
+    // 2. responseRate — % reviews aprobadas con sellerReply
     const [totalReviewsRow] = await this.db
       .select({ total: count() })
       .from(schema.reviews)
       .innerJoin(schema.products, eq(schema.reviews.productId, schema.products.id))
       .innerJoin(schema.stores, eq(schema.products.storeId, schema.stores.id))
-      .where(and(eq(schema.stores.userId, sellerId), eq(schema.reviews.status, 'approved')));
+      .where(
+        and(
+          eq(schema.stores.userId, sellerId),
+          eq(schema.reviews.status, 'approved'),
+        ),
+      );
 
     const [repliedRow] = await this.db
       .select({ replied: count() })
@@ -74,7 +79,7 @@ export class ReputationProcessor extends WorkerHost {
     const repliedCount = Number(repliedRow?.replied ?? 0);
     const responseRate = totalReviews > 0 ? repliedCount / totalReviews : 0;
 
-    // 3. fulfillmentRate — delivered orders / total orders for this seller
+    // 3. fulfillmentRate — órdenes delivered / total órdenes del seller
     const [totalOrdersRow] = await this.db
       .select({ total: count() })
       .from(schema.orders)
@@ -89,43 +94,43 @@ export class ReputationProcessor extends WorkerHost {
       .innerJoin(schema.orderItems, eq(schema.orderItems.orderId, schema.orders.id))
       .innerJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
       .innerJoin(schema.stores, eq(schema.products.storeId, schema.stores.id))
-      .where(and(eq(schema.stores.userId, sellerId), eq(schema.orders.status, 'delivered')));
+      .where(
+        and(
+          eq(schema.stores.userId, sellerId),
+          eq(schema.orders.status, 'delivered'),
+        ),
+      );
 
     const totalOrders = Number(totalOrdersRow?.total ?? 0);
     const deliveredOrders = Number(deliveredRow?.delivered ?? 0);
     const fulfillmentRate = totalOrders > 0 ? deliveredOrders / totalOrders : 0;
 
-    // 4. disputeCount
+    // 4. disputeCount — disputes tiene sellerId directo
     const [disputeRow] = await this.db
       .select({ dispCount: count() })
       .from(schema.disputes)
-      .innerJoin(schema.orders, eq(schema.disputes.orderId, schema.orders.id))
-      .innerJoin(schema.orderItems, eq(schema.orderItems.orderId, schema.orders.id))
-      .innerJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
-      .innerJoin(schema.stores, eq(schema.products.storeId, schema.stores.id))
-      .where(eq(schema.stores.userId, sellerId));
+      .where(eq(schema.disputes.sellerId, sellerId));
 
     const disputeCount = Number(disputeRow?.dispCount ?? 0);
     const disputePenalty = Math.min(disputeCount * 5, 100);
 
-    // 5. Score formula per prompt v7:
-    // score = (avgRating/5)*100*0.4 + responseRate*100*0.2 + fulfillmentRate*100*0.3 - disputePenalty*0.1
+    // 5. Score según fórmula prompt v7
     const score = Math.max(
       0,
-      (avgRating / 5) * 100 * 0.4 +
+      (avgRatingVal / 5) * 100 * 0.4 +
         responseRate * 100 * 0.2 +
         fulfillmentRate * 100 * 0.3 -
         disputePenalty * 0.1,
     );
 
-    const badge = calcBadge(score, avgRating);
+    const badge = calcBadge(score, avgRatingVal);
 
-    // 6. Upsert into sellerReputation
+    // 6. Upsert sellerReputation
     await this.db
       .insert(schema.sellerReputation)
       .values({
         sellerId,
-        avgRating: String(avgRating),
+        avgRating: String(avgRatingVal),
         responseRate: String(responseRate),
         fulfillmentRate: String(fulfillmentRate),
         disputeCount,
@@ -136,7 +141,7 @@ export class ReputationProcessor extends WorkerHost {
       .onConflictDoUpdate({
         target: schema.sellerReputation.sellerId,
         set: {
-          avgRating: String(avgRating),
+          avgRating: String(avgRatingVal),
           responseRate: String(responseRate),
           fulfillmentRate: String(fulfillmentRate),
           disputeCount,
@@ -147,7 +152,7 @@ export class ReputationProcessor extends WorkerHost {
       });
 
     this.logger.log(
-      `Seller ${sellerId} reputation updated — score: ${score.toFixed(1)}, badge: ${badge}`,
+      `Seller ${sellerId} — score: ${score.toFixed(1)}, badge: ${badge}`,
     );
   }
 }

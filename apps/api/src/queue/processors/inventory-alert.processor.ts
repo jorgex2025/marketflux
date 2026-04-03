@@ -6,7 +6,7 @@ import { Queue } from 'bullmq';
 import { InjectDrizzle } from '../../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../../database/schema';
-import { eq, lte, and } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { NOTIFICATION_QUEUE, NotificationJobData } from './notification.processor';
 
 export const INVENTORY_ALERT_QUEUE = 'inventory-alert';
@@ -32,35 +32,42 @@ export class InventoryAlertProcessor extends WorkerHost {
   async process(job: Job<InventoryAlertJobData>): Promise<void> {
     const { productId, variantId, currentStock, sellerId } = job.data;
 
-    // Find matching alerts for this product/variant where threshold >= currentStock
+    // Cargar alertas del producto (y variante si aplica)
+    const conditions = variantId
+      ? and(
+          eq(schema.inventoryAlerts.productId, productId),
+          eq(schema.inventoryAlerts.variantId, variantId),
+        )
+      : eq(schema.inventoryAlerts.productId, productId);
+
     const alerts = await this.db
       .select()
       .from(schema.inventoryAlerts)
-      .where(
-        and(
-          eq(schema.inventoryAlerts.productId, productId),
-          lte(schema.inventoryAlerts.threshold, currentStock + 1),
-        ),
-      );
+      .where(conditions);
 
     for (const alert of alerts) {
+      // Verificación JS: stock actual <= threshold configur
       if (currentStock <= alert.threshold) {
         this.logger.warn(
-          `Low stock alert: product ${productId}${
+          `Low stock: product ${productId}${
             variantId ? ` variant ${variantId}` : ''
-          } has ${currentStock} units (threshold: ${alert.threshold})`,
+          } stock=${currentStock} (threshold=${alert.threshold})`,
         );
 
-        await this.notificationQueue.add('low-stock', {
-          type: 'lowstock',
-          userId: sellerId,
-          payload: {
-            productId,
-            variantId,
-            currentStock,
-            threshold: alert.threshold,
+        await this.notificationQueue.add(
+          'low-stock',
+          {
+            type: 'lowstock',
+            userId: sellerId,
+            payload: {
+              productId,
+              variantId: variantId ?? null,
+              currentStock,
+              threshold: alert.threshold,
+            },
           },
-        });
+          { removeOnComplete: 100, removeOnFail: 50 },
+        );
       }
     }
   }
