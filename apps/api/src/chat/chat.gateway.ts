@@ -20,7 +20,7 @@ import type { SendMessageDto, CreateConversationDto } from './dto/create-chat.dt
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   constructor(
     private readonly chatService: ChatService,

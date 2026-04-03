@@ -3,7 +3,7 @@ import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 export class CreateConversationDto {
   @IsString()
   @IsNotEmpty()
-  sellerId: string;
+  sellerId!: string;
 
   @IsString()
   @IsOptional()
@@ -13,11 +13,11 @@ export class CreateConversationDto {
 export class SendMessageDto {
   @IsString()
   @IsNotEmpty()
-  conversationId: string;
+  conversationId!: string;
 
   @IsString()
   @IsNotEmpty()
-  body: string;
+  body!: string;
 
   @IsOptional()
   attachments?: string[];

@@ -17,7 +17,7 @@ export interface AuthenticatedRequest extends Request {
 
 @Injectable()
 export class AuthService {
-  public readonly auth: ReturnType<typeof betterAuth>;
+  public readonly auth: any;
 
   constructor(
     private readonly drizzleService: DrizzleService,

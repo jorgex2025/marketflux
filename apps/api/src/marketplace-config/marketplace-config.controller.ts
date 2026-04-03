@@ -35,7 +35,7 @@ export class MarketplaceConfigController {
   @Patch(':key')
   @Roles('superadmin')
   update(@Param('key') key: string, @Body() dto: UpdateConfigDto) {
-    return this.configService.set(key, dto.value, dto.description);
+    return this.configService.set(key, dto.value);
   }
 
   /** PATCH /api/config — bulk update (superadmin only) */

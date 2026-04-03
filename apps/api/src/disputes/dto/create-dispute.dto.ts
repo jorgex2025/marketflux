@@ -2,15 +2,15 @@ import { IsString, IsNotEmpty, IsUUID, IsOptional } from 'class-validator';
 
 export class CreateDisputeDto {
   @IsUUID()
-  orderId: string;
+  orderId!: string;
 
   @IsString()
   @IsNotEmpty()
-  reason: string;
+  reason!: string;
 
   @IsString()
   @IsNotEmpty()
-  description: string;
+  description!: string;
 
   @IsString()
   @IsOptional()

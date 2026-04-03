@@ -21,7 +21,7 @@ export class SentryExceptionFilter implements ExceptionFilter {
 
     // Solo reportar a Sentry errores 5xx (no 4xx del cliente)
     if (status >= 500) {
-      Sentry.withScope((scope) => {
+      Sentry.withScope((scope: any) => {
         scope.setExtra('url', request.url);
         scope.setExtra('method', request.method);
         scope.setExtra('body', request.body);

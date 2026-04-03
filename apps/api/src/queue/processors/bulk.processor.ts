@@ -2,7 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { InjectDrizzle } from '../../database/database.module';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '../../database/schema';
 import { eq } from 'drizzle-orm';
 
@@ -26,7 +26,7 @@ export class BulkProcessor extends WorkerHost {
   private readonly logger = new Logger(BulkProcessor.name);
 
   constructor(
-    @InjectDrizzle() private readonly db: NodePgDatabase<typeof schema>,
+    @InjectDrizzle() private readonly db: NeonHttpDatabase<typeof schema>,
   ) {
     super();
   }
@@ -43,6 +43,11 @@ export class BulkProcessor extends WorkerHost {
         if (action === 'create') {
           await this.db.insert(schema.products).values({
             name: item.name ?? '',
+            slug:
+              (item.name ?? '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '') || 'product-' + Date.now(),
             description: item.description ?? '',
             price: String(item.price ?? 0),
             storeId: sellerId,

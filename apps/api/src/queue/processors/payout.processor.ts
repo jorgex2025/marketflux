@@ -1,9 +1,9 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger, Inject } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
-import { DATABASE_CONNECTION } from '../../database/database.module';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { InjectDrizzle } from '../../database/database.module';
+import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '../../database/schema';
 import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
@@ -25,12 +25,11 @@ export class PayoutProcessor extends WorkerHost {
 
   constructor(
     private readonly config: ConfigService,
-    @Inject(DATABASE_CONNECTION)
-    private readonly db: NodePgDatabase<typeof schema>,
+    @InjectDrizzle() private readonly db: NeonHttpDatabase<typeof schema>,
   ) {
     super();
     this.stripe = new Stripe(this.config.get<string>('STRIPE_SECRET_KEY')!, {
-      apiVersion: '2024-12-18.acacia',
+      apiVersion: '2025-02-24.acacia',
     });
   }
 
@@ -55,7 +54,6 @@ export class PayoutProcessor extends WorkerHost {
         .set({
           status: 'paid',
           stripeTransferId: transfer.id,
-          paidAt: new Date(),
         })
         .where(eq(schema.payouts.id, payoutId));
 

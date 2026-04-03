@@ -22,7 +22,7 @@ export class InventoryService {
     const store = await this.db.query.stores.findFirst({
       where: and(
         eq(schema.stores.id, product.storeId),
-        eq(schema.stores.ownerId, sellerId),
+        eq(schema.stores.userId, sellerId),
       ),
     });
     if (!store) throw new ForbiddenException('Not your product');
@@ -37,7 +37,7 @@ export class InventoryService {
     const store = await this.db.query.stores.findFirst({
       where: and(
         eq(schema.stores.id, product.storeId),
-        eq(schema.stores.ownerId, sellerId),
+        eq(schema.stores.userId, sellerId),
       ),
     });
     if (!store) throw new ForbiddenException('Not your product');
@@ -58,7 +58,7 @@ export class InventoryService {
     const store = await this.db.query.stores.findFirst({
       where: and(
         eq(schema.stores.id, product.storeId),
-        eq(schema.stores.ownerId, sellerId),
+        eq(schema.stores.userId, sellerId),
       ),
     });
     if (!store) throw new ForbiddenException('Not your product');
@@ -81,7 +81,7 @@ export class InventoryService {
       .from(schema.inventoryAlerts)
       .innerJoin(schema.products, eq(schema.inventoryAlerts.productId, schema.products.id))
       .innerJoin(schema.stores, eq(schema.products.storeId, schema.stores.id))
-      .where(eq(schema.stores.ownerId, sellerId));
+      .where(eq(schema.stores.userId, sellerId));
     return { data: alerts };
   }
 
@@ -93,7 +93,7 @@ export class InventoryService {
     const store = await this.db.query.stores.findFirst({
       where: and(
         eq(schema.stores.id, product.storeId),
-        eq(schema.stores.ownerId, sellerId),
+        eq(schema.stores.userId, sellerId),
       ),
     });
     if (!store) throw new ForbiddenException('Not your product');
@@ -110,7 +110,7 @@ export class InventoryService {
       .from(schema.inventoryAlerts)
       .innerJoin(schema.products, eq(schema.inventoryAlerts.productId, schema.products.id))
       .innerJoin(schema.stores, eq(schema.products.storeId, schema.stores.id))
-      .where(and(eq(schema.inventoryAlerts.id, alertId), eq(schema.stores.ownerId, sellerId)))
+      .where(and(eq(schema.inventoryAlerts.id, alertId), eq(schema.stores.userId, sellerId)))
       .limit(1);
     if (!alert) throw new NotFoundException('Alert not found');
     await this.db.delete(schema.inventoryAlerts).where(eq(schema.inventoryAlerts.id, alertId));
@@ -126,7 +126,7 @@ export class InventoryService {
       if (newStock <= alert.threshold) {
         await this.db
           .update(schema.inventoryAlerts)
-          .set({ triggeredAt: new Date() })
+          .set({ updatedAt: new Date() })
           .where(eq(schema.inventoryAlerts.id, alert.id));
       }
     }

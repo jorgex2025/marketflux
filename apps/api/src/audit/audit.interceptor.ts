@@ -34,8 +34,8 @@ export class AuditInterceptor implements NestInterceptor {
         void this.auditService.log({
           userId: user.id,
           action: method,
-          resource,
-          resourceId: req.params?.id,
+          entity: resource,
+          entityId: req.params?.id,
           metadata: { body: req.body, query: req.query },
           ipAddress: req.ip,
         });

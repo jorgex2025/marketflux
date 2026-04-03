@@ -33,23 +33,26 @@ export class AnalyticsService {
    * Resumen de revenue, pedidos totales y ticket promedio para un seller.
    */
   async getSellerSummary(storeId: string, range: DateRangeFilter = {}) {
-    const conditions = [eq(schema.orders.storeId, storeId)];
+    const conditions = [eq(schema.products.storeId, storeId)];
     if (range.from) conditions.push(gte(schema.orders.createdAt, range.from));
     if (range.to) conditions.push(lte(schema.orders.createdAt, range.to));
 
     const [result] = await this.db
       .select({
-        totalRevenue: sum(schema.orders.total),
+        totalRevenue: sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.unitPrice})`),
         totalOrders: count(schema.orders.id),
-        avgOrderValue: avg(schema.orders.total),
+        avgOrderValue: avg(schema.orderItems.total),
       })
-      .from(schema.orders)
+      .from(schema.orderItems)
+      .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+      .innerJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
       .where(and(...conditions));
 
+    const summary = result ?? { totalRevenue: 0, totalOrders: 0, avgOrderValue: 0 };
     return {
-      totalRevenue: Number(result.totalRevenue ?? 0),
-      totalOrders: Number(result.totalOrders ?? 0),
-      avgOrderValue: Number(result.avgOrderValue ?? 0),
+      totalRevenue: Number(summary.totalRevenue ?? 0),
+      totalOrders: Number(summary.totalOrders ?? 0),
+      avgOrderValue: Number(summary.avgOrderValue ?? 0),
     };
   }
 
@@ -61,7 +64,7 @@ export class AnalyticsService {
     range: DateRangeFilter = {},
     limit = 10,
   ) {
-    const conditions = [eq(schema.orders.storeId, storeId)];
+    const conditions = [eq(schema.products.storeId, storeId)];
     if (range.from) conditions.push(gte(schema.orders.createdAt, range.from));
     if (range.to) conditions.push(lte(schema.orders.createdAt, range.to));
 
@@ -84,7 +87,6 @@ export class AnalyticsService {
       .groupBy(schema.orderItems.productId, schema.products.name)
       .orderBy(desc(sum(sql<number>`${schema.orderItems.quantity} * ${schema.orderItems.unitPrice}`)))
       .limit(limit);
-
     return rows.map((r) => ({
       productId: r.productId,
       productName: r.productName,
@@ -97,21 +99,22 @@ export class AnalyticsService {
    * Revenue diario agrupado por día para gráficas de seller.
    */
   async getSellerRevenueByDay(storeId: string, range: DateRangeFilter = {}) {
-    const conditions = [eq(schema.orders.storeId, storeId)];
+    const conditions = [eq(schema.products.storeId, storeId)];
     if (range.from) conditions.push(gte(schema.orders.createdAt, range.from));
     if (range.to) conditions.push(lte(schema.orders.createdAt, range.to));
 
     const rows = await this.db
       .select({
         day: sql<string>`DATE(${schema.orders.createdAt})`,
-        revenue: sum(schema.orders.total),
-        orders: count(schema.orders.id),
+        revenue: sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.unitPrice})`),
+        orders: count(schema.orderItems.orderId),
       })
-      .from(schema.orders)
+      .from(schema.orderItems)
+      .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+      .innerJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
       .where(and(...conditions))
       .groupBy(sql`DATE(${schema.orders.createdAt})`)
       .orderBy(sql`DATE(${schema.orders.createdAt})`);
-
     return rows.map((r) => ({
       day: r.day,
       revenue: Number(r.revenue ?? 0),
@@ -148,11 +151,15 @@ export class AnalyticsService {
       .select({ totalUsers: count(schema.users.id) })
       .from(schema.users);
 
+    const orderSummary = orderStats ?? { gmv: 0, totalOrders: 0 };
+    const storeSummary = storeStats ?? { activeStores: 0 };
+    const userSummary = userStats ?? { totalUsers: 0 };
+
     return {
-      gmv: Number(orderStats.gmv ?? 0),
-      totalOrders: Number(orderStats.totalOrders ?? 0),
-      activeStores: Number(storeStats.activeStores ?? 0),
-      totalUsers: Number(userStats.totalUsers ?? 0),
+      gmv: Number(orderSummary.gmv ?? 0),
+      totalOrders: Number(orderSummary.totalOrders ?? 0),
+      activeStores: Number(storeSummary.activeStores ?? 0),
+      totalUsers: Number(userSummary.totalUsers ?? 0),
     };
   }
 
@@ -168,16 +175,18 @@ export class AnalyticsService {
 
     const rows = await this.db
       .select({
-        storeId: schema.orders.storeId,
+        storeId: schema.products.storeId,
         storeName: schema.stores.name,
-        gmv: sum(schema.orders.total),
-        orderCount: count(schema.orders.id),
+        gmv: sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.unitPrice})`),
+        orderCount: count(schema.orderItems.orderId),
       })
-      .from(schema.orders)
-      .innerJoin(schema.stores, eq(schema.orders.storeId, schema.stores.id))
+      .from(schema.orderItems)
+      .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+      .innerJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
+      .innerJoin(schema.stores, eq(schema.products.storeId, schema.stores.id))
       .where(conditions.length ? and(...conditions) : undefined)
-      .groupBy(schema.orders.storeId, schema.stores.name)
-      .orderBy(desc(sum(schema.orders.total)))
+      .groupBy(schema.products.storeId, schema.stores.name)
+      .orderBy(desc(sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.unitPrice})`)))
       .limit(limit);
 
     return rows.map((r) => ({

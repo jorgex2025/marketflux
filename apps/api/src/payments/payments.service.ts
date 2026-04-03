@@ -9,10 +9,9 @@ import { ConfigService } from '@nestjs/config';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { eq } from 'drizzle-orm';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { Inject } from '@nestjs/common';
-import { DATABASE_TOKEN } from '../database/database.module';
+import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '../database/schema/index';
+import { DrizzleService } from '../database/database.module';
 import { OrdersService } from '../orders/orders.service';
 import Stripe from 'stripe';
 import type { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
@@ -23,15 +22,18 @@ export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
   private readonly webhookSecret: string;
 
+  private get db(): NeonHttpDatabase<typeof schema> {
+    return this.drizzleService.db;
+  }
+
   constructor(
-    @Inject(DATABASE_TOKEN)
-    private readonly db: NodePgDatabase<typeof schema>,
+    private readonly drizzleService: DrizzleService,
     private readonly config: ConfigService,
     private readonly ordersService: OrdersService,
   ) {
     const secretKey = this.config.getOrThrow<string>('STRIPE_SECRET_KEY');
     this.webhookSecret = this.config.getOrThrow<string>('STRIPE_WEBHOOK_SECRET');
-    this.stripe = new Stripe(secretKey, { apiVersion: '2025-01-27.acacia' });
+    this.stripe = new Stripe(secretKey, { apiVersion: '2025-02-24.acacia' });
   }
 
   async createCheckoutSession(
@@ -45,6 +47,8 @@ export class PaymentsService {
 
     if (!order) throw new NotFoundException('Orden no encontrada');
     if (order.userId !== userId) throw new BadRequestException('No autorizado');
+
+    const orderItems = order.items ?? [];
     if (order.status !== 'pending') {
       throw new BadRequestException('La orden no está en estado pendiente');
     }
@@ -52,7 +56,7 @@ export class PaymentsService {
     const webUrl = this.config.get<string>('WEB_URL') ?? 'http://localhost:3000';
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
-      order.items.map((item) => ({
+      orderItems.map((item) => ({
         quantity: item.quantity,
         price_data: {
           currency: 'usd',

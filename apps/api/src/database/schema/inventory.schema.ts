@@ -39,6 +39,7 @@ export const inventoryAlerts = pgTable('inventory_alerts', {
   variantId: text('variant_id').references(() => productVariants.id),
   threshold: integer('threshold').notNull().default(5),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 export const carts = pgTable('carts', {

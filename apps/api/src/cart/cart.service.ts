@@ -22,17 +22,28 @@ export class CartService {
   }
 
   private async getOrCreateCart(userId: string) {
-    let cart = await this.db.query.carts.findFirst({
+    type CartWithItems = {
+      id: string;
+      userId: string;
+      couponCode?: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      items: Array<{ id: string; productId: string; variantId?: string | null; quantity: number; unitPrice: string; product?: any; variant?: any }>;
+    };
+
+    let cart = (await this.db.query.carts.findFirst({
       where: eq(schema.carts.userId, userId),
       with: { items: { with: { product: true, variant: true } } },
-    });
+    })) as CartWithItems | null;
+
     if (!cart) {
       const [newCart] = await this.db
         .insert(schema.carts)
         .values({ userId })
         .returning();
-      cart = { ...newCart, items: [] };
+      cart = { ...newCart, items: [] } as CartWithItems;
     }
+
     return cart;
   }
 
@@ -43,20 +54,25 @@ export class CartService {
 
   async addItem(dto: AddCartItemDto, userId: string) {
     const cart = await this.getOrCreateCart(userId);
+    const cartId = cart.id;
 
     const product = await this.db.query.products.findFirst({
       where: eq(schema.products.id, dto.productId),
     });
     if (!product) throw new NotFoundException('Product not found');
 
+    const quantity = dto.quantity ?? dto.qty;
+    if (quantity === undefined) {
+      throw new BadRequestException('Quantity is required');
+    }
     const availableStock = await this.getAvailableStock(dto.productId, dto.variantId);
-    if (availableStock < dto.quantity) {
+    if (availableStock < quantity) {
       throw new ConflictException(`Insufficient stock. Available: ${availableStock}`);
     }
 
     const existing = await this.db.query.cartItems.findFirst({
       where: and(
-        eq(schema.cartItems.cartId, cart.id),
+        eq(schema.cartItems.cartId, cartId),
         eq(schema.cartItems.productId, dto.productId),
         dto.variantId
           ? eq(schema.cartItems.variantId, dto.variantId)
@@ -65,7 +81,7 @@ export class CartService {
     });
 
     if (existing) {
-      const newQty = existing.quantity + dto.quantity;
+      const newQty = existing.quantity + quantity;
       if (newQty > availableStock) throw new ConflictException('Not enough stock for requested quantity');
       const [updated] = await this.db
         .update(schema.cartItems)
@@ -85,7 +101,7 @@ export class CartService {
         cartId: cart.id,
         productId: dto.productId,
         variantId: dto.variantId ?? null,
-        quantity: dto.quantity,
+        quantity,
         unitPrice,
       })
       .returning();
@@ -94,15 +110,20 @@ export class CartService {
 
   async updateItem(itemId: string, dto: UpdateCartItemDto, userId: string) {
     const cart = await this.getOrCreateCart(userId);
+    const cartId = cart.id;
     const item = await this.db.query.cartItems.findFirst({
-      where: and(eq(schema.cartItems.id, itemId), eq(schema.cartItems.cartId, cart.id)),
+      where: and(eq(schema.cartItems.id, itemId), eq(schema.cartItems.cartId, cartId)),
     });
     if (!item) throw new NotFoundException('Cart item not found');
+    const quantity = dto.quantity ?? dto.qty;
+    if (quantity === undefined) {
+      throw new BadRequestException('Quantity is required');
+    }
     const availableStock = await this.getAvailableStock(item.productId, item.variantId ?? undefined);
-    if (dto.quantity > availableStock) throw new ConflictException(`Insufficient stock. Available: ${availableStock}`);
+    if (quantity > availableStock) throw new ConflictException(`Insufficient stock. Available: ${availableStock}`);
     const [updated] = await this.db
       .update(schema.cartItems)
-      .set({ quantity: dto.quantity })
+      .set({ quantity })
       .where(eq(schema.cartItems.id, itemId))
       .returning();
     return { data: updated };
@@ -110,8 +131,9 @@ export class CartService {
 
   async removeItem(itemId: string, userId: string) {
     const cart = await this.getOrCreateCart(userId);
+    const cartId = cart.id;
     const item = await this.db.query.cartItems.findFirst({
-      where: and(eq(schema.cartItems.id, itemId), eq(schema.cartItems.cartId, cart.id)),
+      where: and(eq(schema.cartItems.id, itemId), eq(schema.cartItems.cartId, cartId)),
     });
     if (!item) throw new NotFoundException('Cart item not found');
     await this.db.delete(schema.cartItems).where(eq(schema.cartItems.id, itemId));
@@ -126,7 +148,9 @@ export class CartService {
     if (!coupon) throw new NotFoundException('Coupon not found');
     if (!coupon.active) throw new BadRequestException('Coupon is not active');
     if (coupon.endsAt && coupon.endsAt < now) throw new BadRequestException('Coupon has expired');
-    if (coupon.usageLimit !== null && parseInt(coupon.usedCount) >= parseInt(coupon.usageLimit))
+    const usedCount = parseInt(coupon.usedCount ?? '0', 10);
+    const usageLimit = coupon.usageLimit ? parseInt(coupon.usageLimit, 10) : null;
+    if (usageLimit !== null && usedCount >= usageLimit)
       throw new BadRequestException('Coupon usage limit reached');
 
     const cart = await this.getOrCreateCart(userId);

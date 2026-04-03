@@ -4,7 +4,7 @@ export class UpdateConfigDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(5000)
-  value: string;
+  value!: string;
 
   @IsString()
   @IsOptional()

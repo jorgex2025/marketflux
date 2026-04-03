@@ -46,13 +46,13 @@ export class MarketplaceConfigService {
     return row.value;
   }
 
-  async set(key: string, value: string, description?: string): Promise<void> {
+  async set(key: string, value: string): Promise<void> {
     await this.db
       .insert(schema.marketplaceConfig)
-      .values({ key, value, description: description ?? null, updatedAt: new Date() })
+      .values({ key, value, updatedAt: new Date() })
       .onConflictDoUpdate({
         target: schema.marketplaceConfig.key,
-        set: { value, description: description ?? null, updatedAt: new Date() },
+        set: { value, updatedAt: new Date() },
       });
 
     // Invalidate cache
@@ -61,7 +61,7 @@ export class MarketplaceConfigService {
 
   async setBulk(entries: Array<{ key: string; value: string; description?: string }>): Promise<void> {
     for (const entry of entries) {
-      await this.set(entry.key, entry.value, entry.description);
+      await this.set(entry.key, entry.value);
     }
   }
 }

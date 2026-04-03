@@ -2,7 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { InjectDrizzle } from '../../database/database.module';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '../../database/schema';
 import { eq, and } from 'drizzle-orm';
 
@@ -19,7 +19,7 @@ export class PaymentProcessor extends WorkerHost {
   private readonly logger = new Logger(PaymentProcessor.name);
 
   constructor(
-    @InjectDrizzle() private readonly db: NodePgDatabase<typeof schema>,
+    @InjectDrizzle() private readonly db: NeonHttpDatabase<typeof schema>,
   ) {
     super();
   }
@@ -47,7 +47,7 @@ export class PaymentProcessor extends WorkerHost {
     // 2. Update payment status
     await this.db
       .update(schema.payments)
-      .set({ status: 'succeeded', updatedAt: new Date() })
+      .set({ status: 'paid', updatedAt: new Date() })
       .where(eq(schema.payments.id, paymentId));
 
     // 3. Confirm inventory reservations (reserved -> confirmed) and deduct stock
@@ -87,7 +87,7 @@ export class PaymentProcessor extends WorkerHost {
   private async handlePaymentFailed(orderId: string): Promise<void> {
     await this.db
       .update(schema.orders)
-      .set({ status: 'payment_failed', updatedAt: new Date() })
+      .set({ status: 'cancelled', updatedAt: new Date() })
       .where(eq(schema.orders.id, orderId));
 
     // Release reservations

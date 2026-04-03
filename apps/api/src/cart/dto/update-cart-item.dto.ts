@@ -4,4 +4,8 @@ export class UpdateCartItemDto {
   @IsInt()
   @Min(1)
   qty!: number;
+
+  @IsInt()
+  @Min(1)
+  quantity?: number;
 }

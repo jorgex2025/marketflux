@@ -1,8 +1,8 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger, Inject } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { DATABASE_CONNECTION } from '../../database/database.module';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { InjectDrizzle } from '../../database/database.module';
+import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '../../database/schema';
 import { eq, and, lt, inArray } from 'drizzle-orm';
 
@@ -13,8 +13,7 @@ export class OrderExpiryProcessor extends WorkerHost {
   private readonly logger = new Logger(OrderExpiryProcessor.name);
 
   constructor(
-    @Inject(DATABASE_CONNECTION)
-    private readonly db: NodePgDatabase<typeof schema>,
+    @InjectDrizzle() private readonly db: NeonHttpDatabase<typeof schema>,
   ) {
     super();
   }
@@ -29,7 +28,7 @@ export class OrderExpiryProcessor extends WorkerHost {
       .from(schema.orders)
       .where(
         and(
-          eq(schema.orders.status, 'pending_payment'),
+          eq(schema.orders.status, 'pending'),
           lt(schema.orders.createdAt, expiryThreshold),
         ),
       );

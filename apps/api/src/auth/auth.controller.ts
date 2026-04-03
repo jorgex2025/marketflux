@@ -37,7 +37,7 @@ export class AuthController {
     );
 
     res.status(response.status);
-    response.headers.forEach((value, key) => res.setHeader(key, value));
+    response.headers.forEach((value: string, key: string) => res.setHeader(key, value));
     const body = await response.text();
     res.send(body);
   }

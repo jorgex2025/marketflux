@@ -4,9 +4,9 @@ import { IsString, IsNotEmpty, IsIn } from 'class-validator';
 // 'open' | 'under_review' | 'resolved' | 'closed'
 export class ResolveDisputeDto {
   @IsIn(['under_review', 'resolved', 'closed'])
-  status: string;
+  status!: string;
 
   @IsString()
   @IsNotEmpty()
-  resolution: string;
+  resolution!: string;
 }

@@ -21,22 +21,22 @@ export class AuditService {
   private get db(): NeonHttpDatabase<typeof schema> {
     return this.drizzleService.db;
   }
-  ) {}
 
   async log(entry: {
     userId: string;
     action: string;
-    resource: string;
-    resourceId?: string;
+    entity: string;
+    entityId?: string;
     metadata?: Record<string, unknown>;
     ipAddress?: string;
   }) {
     await this.db.insert(schema.auditLogs).values({
       userId: entry.userId,
       action: entry.action,
-      resource: entry.resource,
-      resourceId: entry.resourceId ?? null,
-      metadata: entry.metadata ?? {},
+      entity: entry.entity,
+      entityId: entry.entityId ?? null,
+      before: null,
+      after: null,
       ipAddress: entry.ipAddress ?? null,
       createdAt: new Date(),
     });
@@ -49,7 +49,7 @@ export class AuditService {
     const conditions: SQL[] = [];
     if (userId) conditions.push(eq(schema.auditLogs.userId, userId));
     if (action) conditions.push(eq(schema.auditLogs.action, action));
-    if (resource) conditions.push(eq(schema.auditLogs.resource, resource));
+    if (resource) conditions.push(eq(schema.auditLogs.entity, resource));
     if (from) conditions.push(gte(schema.auditLogs.createdAt, from));
     if (to) conditions.push(lte(schema.auditLogs.createdAt, to));
 
