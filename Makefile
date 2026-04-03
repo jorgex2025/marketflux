@@ -21,10 +21,10 @@ typecheck:
 	pnpm type-check
 
 migrate:
-	pnpm --filter @marketflux/api exec drizzle-kit push
+	pnpm --filter api exec drizzle-kit push
 
 seed:
-	pnpm --filter @marketflux/api exec tsx src/database/seed.ts
+	pnpm --filter api exec tsx src/database/seed.ts
 
 docker-up:
 	docker compose up -d postgres redis meilisearch
