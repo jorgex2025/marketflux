@@ -19,6 +19,7 @@ build/
 # Logs
 logs/
 *.log
+<<<<<<< Updated upstream
 npm-debug.log*
 pnpm-debug.log*
 
@@ -55,3 +56,4 @@ playwright/.cache/
 uploads/
 *.sqlite
 *.db
+.temp_context/

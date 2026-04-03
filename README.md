@@ -79,3 +79,5 @@ marketflux/
 
 - Deploy web usa Vercel en lugar de Cloudflare Workers (migración pendiente con wrangler.jsonc)
 - `auto-approve.yml` movido desde raíz a `.github/workflows/`
+- Resuelto conflicto de merge en `apps/api/package.json` y `apps/web/package.json`; añadidos `@nestjs/testing` y eliminado `@radix-ui/react-badge` no disponible.
+- Para pasar las pruebas de seed es necesario ejecutar servicios de DB (Postgres/Neon) accesibles y migraciones actualizadas (actualmente `ECONNREFUSED 127.0.0.1:5432`).

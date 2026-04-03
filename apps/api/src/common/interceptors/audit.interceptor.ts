@@ -61,8 +61,10 @@ export class AuditInterceptor implements NestInterceptor {
 
   private resolveEntityId(
     path: string,
-    params: Record<string, string>,
+    params: Record<string, string | string[]>,
   ): string | null {
-    return params?.['id'] ?? params?.['slug'] ?? null;
+    const id = params?.['id'];
+    const slug = params?.['slug'];
+    return (typeof id === 'string' ? id : typeof slug === 'string' ? slug : null);
   }
 }
