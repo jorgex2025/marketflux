@@ -9,9 +9,9 @@ import {
   Request,
 } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
-import { AuthGuard } from '../auth/auth.guard';
-import { Roles } from '../auth/roles.decorator';
-import { RolesGuard } from '../auth/roles.guard';
+import { AuthGuard } from '../common/guards/auth.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 function parseRange(from?: string, to?: string) {
   return {

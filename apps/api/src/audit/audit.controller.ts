@@ -7,9 +7,9 @@ import {
   DefaultValuePipe,
 } from '@nestjs/common';
 import { AuditService } from './audit.service';
-import { AuthGuard } from '../auth/auth.guard';
-import { Roles } from '../auth/roles.decorator';
-import { RolesGuard } from '../auth/roles.guard';
+import { AuthGuard } from '../common/guards/auth.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 @Controller('api/audit')
 @UseGuards(AuthGuard, RolesGuard)

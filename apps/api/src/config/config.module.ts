@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { MarketplaceConfigService } from './config.service';
 import { MarketplaceConfigController } from './config.controller';
-import { DrizzleModule } from '../drizzle/drizzle.module';
-import { RedisModule } from '../redis/redis.module';
+import { DatabaseModule } from '../database/database.module';
+// import { RedisModule } from '../redis/redis.module';
 
 @Module({
-  imports: [DrizzleModule, RedisModule],
+  imports: [DatabaseModule],
   providers: [MarketplaceConfigService],
   controllers: [MarketplaceConfigController],
   exports: [MarketplaceConfigService],

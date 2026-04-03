@@ -8,9 +8,9 @@ import {
 } from '@nestjs/common';
 import { MarketplaceConfigService } from './marketplace-config.service';
 import { UpdateConfigDto } from './dto/update-config.dto';
-import { AuthGuard } from '../auth/auth.guard';
-import { Roles } from '../auth/roles.decorator';
-import { RolesGuard } from '../auth/roles.guard';
+import { AuthGuard } from '../common/guards/auth.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 @Controller('api/config')
 @UseGuards(AuthGuard, RolesGuard)

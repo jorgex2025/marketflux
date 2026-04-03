@@ -1,10 +1,12 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, Inject } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
 import * as schema from './schema';
 
-export const DRIZZLE_TOKEN = 'DRIZZLE_DB';
+export const DATABASE_TOKEN = 'DRIZZLE_DB';
+
+export const InjectDrizzle = () => Inject(DATABASE_TOKEN);
 
 // DrizzleService expone db como propiedad pública
 import { Injectable } from '@nestjs/common';

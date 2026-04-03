@@ -1,9 +1,9 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { DRIZZLE } from '../drizzle/drizzle.provider';
-import { REDIS } from '../redis/redis.provider';
-import Redis from 'ioredis';
-import * as schema from '../drizzle/schema';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { DrizzleService } from '../database/database.module';
+// import { REDIS } from '../redis/redis.provider';
+// import Redis from 'ioredis';
+import * as schema from '../database/schema';
 import { eq } from 'drizzle-orm';
 
 const CACHE_TTL_SECONDS = 300; // 5 min
@@ -11,26 +11,29 @@ const CACHE_PREFIX = 'mf:config:';
 
 @Injectable()
 export class MarketplaceConfigService {
-  constructor(
-    @Inject(DRIZZLE) private readonly db: NodePgDatabase<typeof schema>,
-    @Inject(REDIS) private readonly redis: Redis,
-  ) {}
+  constructor(private readonly drizzleService: DrizzleService) {}
+
+  private get db(): NeonHttpDatabase<typeof schema> {
+    return this.drizzleService.db;
+  }
+
+  // private readonly redis: any; // TODO: add redis
 
   async getAll(): Promise<Record<string, string>> {
-    const cacheKey = `${CACHE_PREFIX}all`;
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return JSON.parse(cached) as Record<string, string>;
+    // const cacheKey = `${CACHE_PREFIX}all`;
+    // const cached = await this.redis.get(cacheKey);
+    // if (cached) return JSON.parse(cached) as Record<string, string>;
 
     const rows = await this.db.select().from(schema.marketplaceConfig);
     const result = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-    await this.redis.setex(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(result));
+    // await this.redis.setex(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(result));
     return result;
   }
 
   async get(key: string): Promise<string> {
-    const cacheKey = `${CACHE_PREFIX}${key}`;
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return cached;
+    // const cacheKey = `${CACHE_PREFIX}${key}`;
+    // const cached = await this.redis.get(cacheKey);
+    // if (cached) return cached;
 
     const [row] = await this.db
       .select()
@@ -39,7 +42,7 @@ export class MarketplaceConfigService {
       .limit(1);
 
     if (!row) throw new NotFoundException(`Config key '${key}' not found`);
-    await this.redis.setex(cacheKey, CACHE_TTL_SECONDS, row.value);
+    // await this.redis.setex(cacheKey, CACHE_TTL_SECONDS, row.value);
     return row.value;
   }
 
@@ -53,7 +56,7 @@ export class MarketplaceConfigService {
       });
 
     // Invalidate cache
-    await this.redis.del(`${CACHE_PREFIX}${key}`, `${CACHE_PREFIX}all`);
+    // await this.redis.del(`${CACHE_PREFIX}${key}`, `${CACHE_PREFIX}all`);
   }
 
   async setBulk(entries: Array<{ key: string; value: string; description?: string }>): Promise<void> {

@@ -34,9 +34,9 @@ export class OrdersService {
         item.productId,
         item.variantId ?? undefined,
       );
-      if (available < item.qty) {
+      if (available < item.quantity) {
         throw new ConflictException(
-          `Insufficient stock for product ${item.productId}. Available: ${available}, requested: ${item.qty}`,
+          `Insufficient stock for product ${item.productId}. Available: ${available}, requested: ${item.quantity}`,
         );
       }
     }
@@ -48,7 +48,7 @@ export class OrdersService {
     // Calculate totals
     let subtotal = 0;
     for (const item of cart.items) {
-      subtotal += Number(item.unitPrice) * item.qty;
+      subtotal += Number(item.unitPrice) * item.quantity;
     }
 
     // Apply coupon if present
@@ -87,17 +87,17 @@ export class OrdersService {
       })
       .returning();
 
-    // Create order items — campo correcto: quantity (no qty)
+    // Create order items — campo correcto: quantity (no quantity)
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     for (const item of cart.items) {
-      const itemTotal = (Number(item.unitPrice) * item.qty).toFixed(2);
+      const itemTotal = (Number(item.unitPrice) * item.quantity).toFixed(2);
       const [orderItem] = await this.db
         .insert(schema.orderItems)
         .values({
           orderId: order.id,
           productId: item.productId,
           variantId: item.variantId ?? null,
-          quantity: item.qty,
+          quantity: item.quantity,
           unitPrice: item.unitPrice,
           total: itemTotal,
           commissionRate: globalRate,
@@ -109,7 +109,7 @@ export class OrdersService {
         variantId: item.variantId ?? null,
         orderId: order.id,
         orderItemId: orderItem.id,
-        qty: item.qty,
+        quantity: item.quantity,
         status: 'reserved',
         expiresAt,
       });
@@ -184,12 +184,12 @@ export class OrdersService {
       if (reservation.variantId) {
         await this.db
           .update(schema.productVariants)
-          .set({ stock: sql`${schema.productVariants.stock} + ${reservation.qty}` })
+          .set({ stock: sql`${schema.productVariants.stock} + ${reservation.quantity}` })
           .where(eq(schema.productVariants.id, reservation.variantId));
       } else {
         await this.db
           .update(schema.products)
-          .set({ stock: sql`${schema.products.stock} + ${reservation.qty}` })
+          .set({ stock: sql`${schema.products.stock} + ${reservation.quantity}` })
           .where(eq(schema.products.id, reservation.productId));
       }
     }
@@ -241,12 +241,12 @@ export class OrdersService {
       if (reservation.variantId) {
         await this.db
           .update(schema.productVariants)
-          .set({ stock: sql`${schema.productVariants.stock} - ${reservation.qty}` })
+          .set({ stock: sql`${schema.productVariants.stock} - ${reservation.quantity}` })
           .where(eq(schema.productVariants.id, reservation.variantId));
       } else {
         await this.db
           .update(schema.products)
-          .set({ stock: sql`${schema.products.stock} - ${reservation.qty}` })
+          .set({ stock: sql`${schema.products.stock} - ${reservation.quantity}` })
           .where(eq(schema.products.id, reservation.productId));
       }
     }

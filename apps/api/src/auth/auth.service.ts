@@ -1,9 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { DrizzleService } from '../database/database.module';
 import * as schema from '../database/schema';
+
+export interface AuthenticatedRequest extends Request {
+  user: {
+    id: string;
+    role: string;
+    name: string;
+    email: string;
+  };
+}
 
 @Injectable()
 export class AuthService {

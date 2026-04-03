@@ -1,7 +1,7 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { DRIZZLE } from '../drizzle/drizzle.provider';
-import * as schema from '../drizzle/schema';
+import { Injectable } from '@nestjs/common';
+import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { DrizzleService } from '../database/database.module';
+import * as schema from '../database/schema';
 import {
   eq,
   and,
@@ -21,9 +21,11 @@ export interface DateRangeFilter {
 
 @Injectable()
 export class AnalyticsService {
-  constructor(
-    @Inject(DRIZZLE) private readonly db: NodePgDatabase<typeof schema>,
-  ) {}
+  constructor(private readonly drizzleService: DrizzleService) {}
+
+  private get db(): NeonHttpDatabase<typeof schema> {
+    return this.drizzleService.db;
+  }
 
   // ─── SELLER ANALYTICS ────────────────────────────────────────────────────────
 

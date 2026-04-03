@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { AuditController } from './audit.controller';
-import { DrizzleModule } from '../drizzle/drizzle.module';
+import { DatabaseModule } from '../database/database.module';
 
 @Module({
-  imports: [DrizzleModule],
+  imports: [DatabaseModule],
   providers: [AuditService],
   controllers: [AuditController],
   exports: [AuditService],
