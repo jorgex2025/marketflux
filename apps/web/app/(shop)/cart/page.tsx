@@ -1,155 +1,92 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { useCart } from '../../../hooks/use-cart';
+import Link from 'next/link';
+import { TrashIcon } from '@heroicons/react/24/outline';
+import { useCart } from '@/src/hooks/use-cart';
+import { useCartStore, selectCartTotal } from '@/src/store/cart.store';
+import { useToast } from '@/components/providers/toast-provider';
+import { useEffect } from 'react';
 
 export default function CartPage() {
-  const router = useRouter();
-  const {
-    items,
-    subtotal,
-    total,
-    coupon,
-    updateQty,
-    removeItem,
-    applyCoupon,
-    removeCoupon,
-  } = useCart();
+  const { items, fetchCart, removeItem, updateItem, applyCoupon, removeCoupon } = useCart();
+  const total = useCartStore(selectCartTotal);
+  const cart = useCartStore((s) => s);
+  const { toast } = useToast();
 
-  const [couponInput, setCouponInput] = useState('');
-  const [couponError, setCouponError] = useState('');
+  useEffect(() => { fetchCart(); }, [fetchCart]);
 
-  function handleApplyCoupon() {
-    if (!couponInput.trim()) return;
-    setCouponError('');
-    applyCoupon(couponInput.trim(), {
-      onError: (err: unknown) => {
-        setCouponError(
-          err instanceof Error ? err.message : 'Cupón no válido',
-        );
-      },
-    });
+  const handleRemove = async (id: string) => {
+    try { await removeItem(id); } catch { toast('Error al eliminar', 'error'); }
+  };
+
+  const handleQty = async (id: string, qty: number) => {
+    if (qty < 1) return;
+    try { await updateItem(id, qty); } catch { toast('Error al actualizar', 'error'); }
+  };
+
+  if (items.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-20 text-center">
+        <p className="text-5xl mb-4">🛒</p>
+        <h1 className="text-2xl font-bold mb-2">Tu carrito está vacío</h1>
+        <p className="text-gray-400 mb-6">Aúde productos para continuar</p>
+        <Link href="/shop/search" className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition">Explorar tienda</Link>
+      </div>
+    );
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
-      <h1 className="mb-6 text-2xl font-bold">Tu carrito</h1>
-
-      {items.length === 0 ? (
-        <p className="text-gray-500">El carrito está vacío.</p>
-      ) : (
-        <>
-          <ul className="divide-y">
-            {items.map((item) => (
-              <li key={item.id} className="flex gap-4 py-4">
-                {item.imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={item.imageUrl}
-                    alt={item.name}
-                    className="h-20 w-20 rounded object-cover"
-                  />
-                )}
-                <div className="flex flex-1 flex-col justify-between">
-                  <span className="font-medium">{item.name}</span>
-                  <span className="text-sm text-gray-500">
-                    ${item.price.toFixed(2)} c/u
-                  </span>
-                  <div className="flex items-center gap-3 mt-1">
-                    <button
-                      onClick={() =>
-                        updateQty({ id: item.id, qty: item.qty - 1 })
-                      }
-                      disabled={item.qty <= 1}
-                      className="rounded border px-2 py-0.5 hover:bg-gray-100 disabled:opacity-40"
-                    >
-                      −
-                    </button>
-                    <span>{item.qty}</span>
-                    <button
-                      onClick={() =>
-                        updateQty({ id: item.id, qty: item.qty + 1 })
-                      }
-                      className="rounded border px-2 py-0.5 hover:bg-gray-100"
-                    >
-                      +
-                    </button>
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="ml-auto text-sm text-red-500 hover:underline"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
+    <div className="max-w-4xl mx-auto px-6 py-10">
+      <h1 className="text-2xl font-bold mb-8">Carrito de compras</h1>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Items */}
+        <div className="md:col-span-2 space-y-4">
+          {items.map((item) => (
+            <div key={item.id} className="flex gap-4 border rounded-xl p-4">
+              {item.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.imageUrl} alt={item.name} className="w-20 h-20 object-cover rounded-lg flex-shrink-0" />
+              )}
+              <div className="flex-1">
+                <p className="font-medium">{item.name}</p>
+                <p className="text-indigo-600 font-bold mt-1">${Number(item.unitPrice).toLocaleString('es-CO')}</p>
+                <div className="flex items-center gap-2 mt-3">
+                  <button onClick={() => handleQty(item.id, item.quantity - 1)} disabled={item.quantity <= 1} className="w-8 h-8 border rounded-full text-sm disabled:opacity-40">−</button>
+                  <span className="w-6 text-center text-sm">{item.quantity}</span>
+                  <button onClick={() => handleQty(item.id, item.quantity + 1)} className="w-8 h-8 border rounded-full text-sm">+</button>
                 </div>
-                <div className="text-right font-medium">
-                  ${(item.price * item.qty).toFixed(2)}
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          {/* Cupón */}
-          <div className="mt-6 flex gap-2">
-            <input
-              type="text"
-              value={couponInput}
-              onChange={(e) => setCouponInput(e.target.value)}
-              placeholder="Código de cupón"
-              className="flex-1 rounded border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
-            />
-            {coupon ? (
-              <button
-                onClick={() => removeCoupon()}
-                className="rounded bg-red-50 px-4 py-2 text-sm text-red-600 hover:bg-red-100"
-              >
-                Quitar cupón
-              </button>
-            ) : (
-              <button
-                onClick={handleApplyCoupon}
-                className="rounded bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"
-              >
-                Aplicar
-              </button>
-            )}
-          </div>
-          {couponError && (
-            <p className="mt-1 text-sm text-red-500">{couponError}</p>
-          )}
-          {coupon && (
-            <p className="mt-1 text-sm text-green-600">
-              Cupón {coupon.code} aplicado: −${coupon.discountAmount.toFixed(2)}
-            </p>
-          )}
-
-          {/* Totales */}
-          <div className="mt-6 space-y-1 border-t pt-4 text-sm">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex flex-col items-end justify-between">
+                <button onClick={() => handleRemove(item.id)} className="text-red-400 hover:text-red-600"><TrashIcon className="h-5 w-5" /></button>
+                <p className="font-bold">${(Number(item.unitPrice) * item.quantity).toLocaleString('es-CO')}</p>
+              </div>
             </div>
-            {coupon && (
-              <div className="flex justify-between text-green-600">
-                <span>Descuento</span>
-                <span>−${coupon.discountAmount.toFixed(2)}</span>
+          ))}
+        </div>
+
+        {/* Resumen */}
+        <div className="space-y-4">
+          <div className="border rounded-xl p-5 space-y-3">
+            <h2 className="font-bold">Resumen</h2>
+            <div className="flex justify-between text-sm">
+              <span>Subtotal</span>
+              <span>${total.toLocaleString('es-CO')}</span>
+            </div>
+            {cart.coupon && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Cupón ({cart.coupon.code})</span>
+                <span>-{cart.coupon.discountType === 'percentage' ? `${cart.coupon.discountValue}%` : `$${cart.coupon.discountValue}`}</span>
               </div>
             )}
-            <div className="flex justify-between text-base font-semibold">
+            <div className="border-t pt-3 flex justify-between font-bold">
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>${total.toLocaleString('es-CO')}</span>
             </div>
+            <Link href="/checkout" className="block w-full bg-indigo-600 text-white text-center py-3 rounded-xl font-semibold hover:bg-indigo-700 transition">Ir a pagar</Link>
           </div>
-
-          <button
-            onClick={() => router.push('/checkout')}
-            className="mt-6 w-full rounded bg-indigo-600 py-3 font-medium text-white hover:bg-indigo-700"
-          >
-            Proceder al pago
-          </button>
-        </>
-      )}
-    </main>
+          <Link href="/shop/search" className="block text-center text-sm text-gray-400 hover:text-gray-600">← Seguir comprando</Link>
+        </div>
+      </div>
+    </div>
   );
 }
