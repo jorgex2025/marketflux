@@ -1,202 +1,188 @@
 'use client';
-
-import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { useCartStore } from '../../../stores/cart-store';
-import { selectSubtotal, selectTotal } from '../../../stores/cart-store';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../../../hooks/use-auth';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-interface PendingOrder {
+type CartItem = {
+  productId: string;
+  name: string;
+  qty: number;
+  unitPrice: string;
+  images?: string[];
+};
+
+type Cart = {
   id: string;
-  status: string;
-  total: number;
-  discountAmount: number;
-  items: Array<{
-    id: string;
-    productName: string;
-    qty: number;
-    unitPrice: number;
-  }>;
+  items: CartItem[];
   couponCode?: string;
-}
-
-async function fetchPendingOrder(): Promise<PendingOrder | null> {
-  const res = await fetch(`${API}/api/orders?page=1&pageSize=1&status=pending`, {
-    credentials: 'include',
-  });
-  if (!res.ok) return null;
-  const json = (await res.json()) as { data: PendingOrder[] };
-  return json.data[0] ?? null;
-}
-
-async function createCheckoutSession(
-  orderId: string,
-): Promise<{ url: string }> {
-  const res = await fetch(`${API}/api/payments/checkout-session`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ orderId }),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as {
-      error?: { message?: string };
-    };
-    throw new Error(err.error?.message ?? 'Error al crear sesión de pago');
-  }
-  const json = (await res.json()) as { data: { url: string } };
-  return json.data;
-}
+  subtotal?: string;
+  discount?: string;
+  total?: string;
+};
 
 export default function CheckoutPage() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const paymentStatus = searchParams.get('payment');
 
-  const items = useCartStore((s) => s.items);
-  const coupon = useCartStore((s) => s.coupon);
-  const subtotal = useCartStore(selectSubtotal);
-  const total = useCartStore(selectTotal);
+  const [cart,         setCart]         = useState<Cart | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [placing,      setPlacing]      = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+  const [couponInput,  setCouponInput]  = useState('');
 
-  const [checkoutError, setCheckoutError] = useState('');
-
-  const orderQuery = useQuery({
-    queryKey: ['pending-order'],
-    queryFn: fetchPendingOrder,
-    enabled: items.length > 0,
-  });
-
-  const checkoutMutation = useMutation({
-    mutationFn: (orderId: string) => createCheckoutSession(orderId),
-    onSuccess: ({ url }) => {
-      window.location.href = url;
-    },
-    onError: (err: unknown) => {
-      setCheckoutError(
-        err instanceof Error ? err.message : 'Error al procesar el pago',
-      );
-    },
-  });
-
-  function handlePay() {
-    const orderId = orderQuery.data?.id;
-    if (!orderId) {
-      setCheckoutError('No se encontró una orden pendiente. Vuelve al carrito.');
-      return;
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace('/login?from=/checkout');
     }
-    setCheckoutError('');
-    checkoutMutation.mutate(orderId);
+  }, [authLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetch(`${API}/api/cart`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data: { data: Cart }) => setCart(data.data))
+      .catch(() => setError('No se pudo cargar el carrito'))
+      .finally(() => setLoading(false));
+  }, [isAuthenticated]);
+
+  async function handlePlaceOrder() {
+    if (!cart?.items?.length) return;
+    setPlacing(true);
+    setError(null);
+    try {
+      // 1. Crear orden
+      const orderRes = await fetch(`${API}/api/orders`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const orderJson = await orderRes.json() as { data?: { id: string }; error?: { message: string } };
+      if (!orderRes.ok) throw new Error(orderJson.error?.message ?? 'Error al crear la orden');
+
+      const orderId = orderJson.data!.id;
+
+      // 2. Crear Stripe Checkout Session
+      const sessionRes = await fetch(`${API}/api/payments/checkout-session`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+      const sessionJson = await sessionRes.json() as { url?: string; error?: { message: string } };
+      if (!sessionRes.ok) throw new Error(sessionJson.error?.message ?? 'Error al crear sesión de pago');
+
+      // 3. Redirigir a Stripe
+      if (sessionJson.url) window.location.href = sessionJson.url;
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error inesperado');
+    } finally {
+      setPlacing(false);
+    }
   }
 
-  // ─── Estado: pago exitoso (redirect desde Stripe) ───
-  if (paymentStatus === 'success') {
+  if (authLoading || loading) {
     return (
-      <main className="mx-auto max-w-lg px-4 py-16 text-center">
-        <div className="text-5xl mb-4">✅</div>
-        <h1 className="text-2xl font-bold mb-2">¡Pago exitoso!</h1>
-        <p className="text-gray-500 mb-6">Tu orden ha sido confirmada.</p>
-        <button
-          onClick={() => router.push('/orders')}
-          className="rounded bg-indigo-600 px-6 py-2 text-white hover:bg-indigo-700"
-        >
-          Ver mis órdenes
-        </button>
-      </main>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
     );
   }
 
-  // ─── Estado: pago cancelado ───
-  if (paymentStatus === 'cancelled') {
+  if (!cart?.items?.length) {
     return (
-      <main className="mx-auto max-w-lg px-4 py-16 text-center">
-        <div className="text-5xl mb-4">❌</div>
-        <h1 className="text-2xl font-bold mb-2">Pago cancelado</h1>
-        <p className="text-gray-500 mb-6">Puedes intentarlo de nuevo.</p>
-        <button
-          onClick={() => router.push('/cart')}
-          className="rounded bg-indigo-600 px-6 py-2 text-white hover:bg-indigo-700"
-        >
-          Volver al carrito
-        </button>
-      </main>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <p className="text-gray-500 text-lg">Tu carrito está vacío.</p>
+        <a href="/shop/search" className="text-indigo-600 hover:underline">Ir a la tienda</a>
+      </div>
     );
   }
 
-  // ─── Carrito vacío ───
-  if (items.length === 0) {
-    return (
-      <main className="mx-auto max-w-lg px-4 py-16 text-center">
-        <p className="text-gray-500">
-          Tu carrito está vacío.{' '}
-          <button
-            onClick={() => router.push('/')}
-            className="text-indigo-600 hover:underline"
-          >
-            Sigue comprando
-          </button>
-        </p>
-      </main>
-    );
-  }
+  const subtotal = cart.items.reduce((sum, i) => sum + parseFloat(i.unitPrice) * i.qty, 0);
 
   return (
-    <main className="mx-auto max-w-lg px-4 py-10">
-      <h1 className="mb-6 text-2xl font-bold">Resumen del pedido</h1>
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        <h1 className="text-2xl font-bold text-gray-900 mb-8">Confirmar pedido</h1>
 
-      {/* Items */}
-      <ul className="divide-y border rounded mb-4">
-        {items.map((item) => (
-          <li
-            key={item.id}
-            className="flex justify-between px-4 py-3 text-sm"
-          >
-            <span>
-              {item.name} × {item.qty}
-            </span>
-            <span>${(item.price * item.qty).toFixed(2)}</span>
-          </li>
-        ))}
-      </ul>
-
-      {/* Totales */}
-      <div className="space-y-1 text-sm border-t pt-4 mb-6">
-        <div className="flex justify-between">
-          <span>Subtotal</span>
-          <span>${subtotal.toFixed(2)}</span>
-        </div>
-        {coupon && (
-          <div className="flex justify-between text-green-600">
-            <span>Cupón ({coupon.code})</span>
-            <span>−${coupon.discountAmount.toFixed(2)}</span>
+        <div className="grid md:grid-cols-3 gap-8">
+          {/* Items */}
+          <div className="md:col-span-2 space-y-4">
+            {cart.items.map((item) => (
+              <div key={item.productId} className="bg-white rounded-xl p-4 flex gap-4 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.images?.[0] ?? `https://placehold.co/80x80/e0e7ff/6366f1?text=${encodeURIComponent(item.name)}`}
+                  alt={item.name}
+                  className="w-20 h-20 rounded-lg object-cover bg-gray-100"
+                />
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900">{item.name}</p>
+                  <p className="text-sm text-gray-500">Cantidad: {item.qty}</p>
+                  <p className="text-indigo-600 font-bold">
+                    ${(parseFloat(item.unitPrice) * item.qty).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-        <div className="flex justify-between font-semibold text-base">
-          <span>Total a pagar</span>
-          <span>${total.toFixed(2)}</span>
+
+          {/* Resumen */}
+          <div className="bg-white rounded-xl p-6 shadow-sm h-fit space-y-4">
+            <h2 className="font-semibold text-gray-900">Resumen</h2>
+
+            {/* Cupón */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Código de cupón"
+                value={couponInput}
+                onChange={(e) => setCouponInput(e.target.value)}
+                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button className="text-sm text-indigo-600 font-medium hover:underline whitespace-nowrap">
+                Aplicar
+              </button>
+            </div>
+
+            <div className="border-t pt-4 space-y-2">
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Subtotal</span>
+                <span>${subtotal.toFixed(2)}</span>
+              </div>
+              {cart.discount && parseFloat(cart.discount) > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Descuento</span>
+                  <span>-${parseFloat(cart.discount).toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-gray-900 text-base border-t pt-2">
+                <span>Total</span>
+                <span>${cart.total ? parseFloat(cart.total).toFixed(2) : subtotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+            )}
+
+            <button
+              onClick={handlePlaceOrder}
+              disabled={placing}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold
+                         hover:bg-indigo-700 disabled:opacity-50 transition"
+            >
+              {placing ? 'Procesando...' : 'Pagar con Stripe'}
+            </button>
+
+            <p className="text-xs text-gray-400 text-center">
+              Pago seguro procesado por Stripe
+            </p>
+          </div>
         </div>
       </div>
-
-      {checkoutError && (
-        <p className="mb-4 rounded bg-red-50 px-4 py-2 text-sm text-red-600">
-          {checkoutError}
-        </p>
-      )}
-
-      <button
-        onClick={handlePay}
-        disabled={checkoutMutation.isPending || orderQuery.isLoading}
-        className="w-full rounded bg-indigo-600 py-3 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-      >
-        {checkoutMutation.isPending
-          ? 'Redirigiendo a Stripe…'
-          : 'Pagar con Stripe'}
-      </button>
-
-      <p className="mt-3 text-center text-xs text-gray-400">
-        Serás redirigido a Stripe para completar el pago de forma segura.
-      </p>
     </main>
   );
 }

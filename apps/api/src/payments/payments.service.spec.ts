@@ -1,83 +1,94 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PaymentsService } from './payments.service';
-import { ConfigService } from '@nestjs/config';
-import { DRIZZLE_TOKEN } from '../database/drizzle.decorator';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+
+const mockOrder = {
+  id: 'order-1',
+  userId: 'user-1',
+  status: 'pending',
+  total: '99.99',
+  discount: '0',
+  items: [{ quantity: 1, unitPrice: '99.99', product: { name: 'Test' }, productId: 'prod-1' }],
+  stripeSessionId: null,
+};
 
 const mockDb = {
   query: {
-    orders: {
-      findFirst: jest.fn(),
-    },
+    orders: { findFirst: vi.fn().mockResolvedValue(mockOrder) },
+    payments: { findFirst: vi.fn() },
   },
-  update: jest.fn().mockReturnThis(),
-  set: jest.fn().mockReturnThis(),
-  where: jest.fn().mockResolvedValue([]),
-  execute: jest.fn().mockResolvedValue([]),
+  insert: vi.fn().mockReturnThis(),
+  values: vi.fn().mockReturnThis(),
+  returning: vi.fn().mockResolvedValue([{}]),
+  update: vi.fn().mockReturnThis(),
+  set: vi.fn().mockReturnThis(),
+  where: vi.fn().mockResolvedValue(undefined),
 };
 
 const mockConfig = {
-  getOrThrow: jest.fn((key: string) => {
+  getOrThrow: vi.fn((key: string) => {
     const map: Record<string, string> = {
-      STRIPE_SECRET_KEY: 'sk_test_mock',
-      STRIPE_WEBHOOK_SECRET: 'whsec_mock',
+      STRIPE_SECRET_KEY: 'sk_test_fake',
+      STRIPE_WEBHOOK_SECRET: 'whsec_fake',
       WEB_URL: 'http://localhost:3000',
     };
     return map[key] ?? '';
   }),
-  get: jest.fn((key: string) => {
-    return key === 'WEB_URL' ? 'http://localhost:3000' : undefined;
-  }),
+  get: vi.fn((key: string) => key === 'WEB_URL' ? 'http://localhost:3000' : undefined),
+};
+
+const mockStripeSession = { id: 'sess_test', url: 'https://checkout.stripe.com/test' };
+
+const mockStripe = {
+  checkout: { sessions: { create: vi.fn().mockResolvedValue(mockStripeSession) } },
+  coupons: { create: vi.fn().mockResolvedValue({ id: 'coup_test' }) },
+  webhooks: { constructEvent: vi.fn() },
+};
+
+const mockOrdersService = {
+  confirmOrderPayment: vi.fn().mockResolvedValue(undefined),
+  cancelOrder: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        PaymentsService,
-        { provide: DRIZZLE_TOKEN, useValue: mockDb },
-        { provide: ConfigService, useValue: mockConfig },
-      ],
-    }).compile();
-
-    service = module.get<PaymentsService>(PaymentsService);
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new PaymentsService(
+      mockDb as any,
+      mockConfig as any,
+      mockOrdersService as any,
+    );
+    // Patch stripe instance
+    (service as any).stripe = mockStripe;
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('createCheckoutSession returns { url }', async () => {
+    const result = await service.createCheckoutSession(
+      { orderId: 'order-1' },
+      'user-1',
+    );
+    expect(result.url).toBe(mockStripeSession.url);
   });
 
-  describe('createCheckoutSession', () => {
-    it('lanza NotFoundException si la orden no existe', async () => {
-      mockDb.query.orders.findFirst.mockResolvedValueOnce(null);
-      await expect(
-        service.createCheckoutSession({ orderId: 'non-existent-id' }, 'user-1'),
-      ).rejects.toThrow('Orden no encontrada');
-    });
+  it('createCheckoutSession throws NotFoundException for unknown order', async () => {
+    mockDb.query.orders.findFirst.mockResolvedValueOnce(null);
+    await expect(
+      service.createCheckoutSession({ orderId: 'bad' }, 'user-1'),
+    ).rejects.toThrow(NotFoundException);
+  });
 
-    it('lanza BadRequestException si la orden no pertenece al usuario', async () => {
-      mockDb.query.orders.findFirst.mockResolvedValueOnce({
-        id: 'order-1',
-        userId: 'other-user',
-        status: 'pending',
-        items: [],
-      });
-      await expect(
-        service.createCheckoutSession({ orderId: 'order-1' }, 'user-1'),
-      ).rejects.toThrow('No autorizado');
-    });
+  it('createCheckoutSession throws BadRequestException for wrong user', async () => {
+    await expect(
+      service.createCheckoutSession({ orderId: 'order-1' }, 'other-user'),
+    ).rejects.toThrow(BadRequestException);
+  });
 
-    it('lanza BadRequestException si la orden no está en estado pending', async () => {
-      mockDb.query.orders.findFirst.mockResolvedValueOnce({
-        id: 'order-1',
-        userId: 'user-1',
-        status: 'confirmed',
-        items: [],
-      });
-      await expect(
-        service.createCheckoutSession({ orderId: 'order-1' }, 'user-1'),
-      ).rejects.toThrow('La orden no está en estado pendiente');
-    });
+  it('createCheckoutSession throws BadRequestException for non-pending order', async () => {
+    mockDb.query.orders.findFirst.mockResolvedValueOnce({ ...mockOrder, status: 'paid' });
+    await expect(
+      service.createCheckoutSession({ orderId: 'order-1' }, 'user-1'),
+    ).rejects.toThrow(BadRequestException);
   });
 });

@@ -3,14 +3,17 @@ import {
   Controller,
   Post,
   Req,
-  UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
-import { PaymentsService } from './payments.service';
-import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Throttle } from '@nestjs/throttler';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
+import { PaymentsService } from './payments.service';
+import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
+import { Public } from '../common/decorators/public.decorator';
+
+type AuthRequest = Request & { user: { id: string; role: string } };
 
 @Controller('payments')
 export class PaymentsController {
@@ -18,24 +21,27 @@ export class PaymentsController {
 
   /**
    * POST /api/payments/checkout-session
-   * Crea una Stripe Checkout Session para una orden pendiente.
+   * Requiere sesión activa (AuthGuard global).
+   * Devuelve la URL de Stripe Checkout.
    */
-  @UseGuards(JwtAuthGuard)
   @Post('checkout-session')
+  @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   async createCheckoutSession(
     @Body() dto: CreateCheckoutSessionDto,
-    @CurrentUser('id') userId: string,
+    @Req() req: AuthRequest,
   ) {
-    const result = await this.paymentsService.createCheckoutSession(dto, userId);
-    return { data: result };
+    return this.paymentsService.createCheckoutSession(dto, req.user.id);
   }
 
   /**
    * POST /api/payments/webhook
-   * Recibe eventos de Stripe (raw body requerido).
-   * Debe estar excluido de autenticación y del body parser JSON global.
+   * Excluido de AuthGuard con @Public().
+   * rawBody requerido — configurado en main.ts con bodyParser raw para esta ruta.
    */
+  @Public()
   @Post('webhook')
+  @HttpCode(HttpStatus.OK)
   async stripeWebhook(@Req() req: RawBodyRequest<Request>) {
     await this.paymentsService.handleWebhook(req);
     return { received: true };

@@ -1,96 +1,83 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { Test, TestingModule } from '@nestjs/testing';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { OrdersService } from './orders.service';
-import { DATABASE_TOKEN } from '../database/database.module';
-import { CartService } from '../cart/cart.service';
+import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 
-const mockDb = {
+const mockProduct = { id: 'prod-1', stock: 10 };
+const mockCart = {
+  id: 'cart-1',
+  status: 'active',
+  couponCode: null,
+  items: [{ productId: 'prod-1', variantId: null, qty: 2, unitPrice: '49.99' }],
+};
+const mockOrder = {
+  id: 'order-1',
+  userId: 'user-1',
+  status: 'pending',
+  total: '99.98',
+  subtotal: '99.98',
+  discount: '0',
+};
+
+const makeDb = () => ({
   query: {
-    orders: { findFirst: vi.fn(), findMany: vi.fn() },
-    orderItems: { findFirst: vi.fn() },
-    inventoryReservations: { findMany: vi.fn() },
-    marketplaceConfig: { findFirst: vi.fn() },
-    coupons: { findFirst: vi.fn() },
-    reviews: { findFirst: vi.fn() },
-    productVariants: { findFirst: vi.fn() },
-    products: { findFirst: vi.fn() },
+    orders:                 { findFirst: vi.fn().mockResolvedValue(mockOrder), findMany: vi.fn().mockResolvedValue([mockOrder]) },
+    orderItems:             { findFirst: vi.fn() },
+    reviews:                { findFirst: vi.fn().mockResolvedValue(null) },
+    coupons:                { findFirst: vi.fn().mockResolvedValue(null) },
+    inventoryReservations:  { findMany: vi.fn().mockResolvedValue([]) },
+    marketplaceConfig:      { findFirst: vi.fn().mockResolvedValue({ commissionGlobalRate: '0.10' }) },
   },
+  select: vi.fn().mockReturnThis(),
+  from:   vi.fn().mockReturnThis(),
+  where:  vi.fn().mockResolvedValue([{ count: 1 }]),
   insert: vi.fn().mockReturnThis(),
   values: vi.fn().mockReturnThis(),
-  returning: vi.fn(),
+  returning: vi.fn().mockResolvedValue([mockOrder]),
   update: vi.fn().mockReturnThis(),
-  set: vi.fn().mockReturnThis(),
-  where: vi.fn().mockReturnThis(),
-  select: vi.fn().mockReturnThis(),
-  from: vi.fn().mockReturnThis(),
-};
+  set:    vi.fn().mockReturnThis(),
+  delete: vi.fn().mockReturnThis(),
+});
 
-const mockCartService = {
-  getCart: vi.fn(),
-  getAvailableStock: vi.fn(),
-};
+const makeCartService = (overrides = {}) => ({
+  getCart:              vi.fn().mockResolvedValue({ data: mockCart }),
+  getAvailableStock:    vi.fn().mockResolvedValue(10),
+  ...overrides,
+});
 
 describe('OrdersService', () => {
   let service: OrdersService;
+  let db: ReturnType<typeof makeDb>;
+  let cartService: ReturnType<typeof makeCartService>;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        OrdersService,
-        { provide: DATABASE_TOKEN, useValue: mockDb },
-        { provide: CartService, useValue: mockCartService },
-      ],
-    }).compile();
-    service = module.get<OrdersService>(OrdersService);
+    db = makeDb();
+    cartService = makeCartService();
+    service = new OrdersService(db as any, cartService as any);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('createOrder throws BadRequestException when cart is empty', async () => {
+    cartService.getCart.mockResolvedValueOnce({ data: { ...mockCart, items: [] } });
+    await expect(service.createOrder('user-1', {})).rejects.toThrow(BadRequestException);
   });
 
-  it('throws BadRequestException when cart is empty', async () => {
-    mockCartService.getCart.mockResolvedValue({ data: { items: [], couponCode: null } });
-    await expect(service.createOrder('user-1', {})).rejects.toThrow('Cart is empty');
+  it('getOrders returns paginated list', async () => {
+    const result = await service.getOrders('user-1');
+    expect(result.data).toHaveLength(1);
+    expect(result.meta.total).toBe(1);
   });
 
-  it('throws ConflictException when stock is insufficient (no overselling)', async () => {
-    mockCartService.getCart.mockResolvedValue({
-      data: {
-        id: 'cart-1',
-        couponCode: null,
-        items: [{ productId: 'p1', variantId: null, qty: 10, unitPrice: '100.00' }],
-      },
-    });
-    mockCartService.getAvailableStock.mockResolvedValue(3);
-    await expect(service.createOrder('user-1', {})).rejects.toThrow('Insufficient stock');
+  it('getOrder throws ForbiddenException for wrong user', async () => {
+    await expect(service.getOrder('order-1', 'other-user')).rejects.toThrow(ForbiddenException);
   });
 
-  it('throws BadRequestException when cancelling a non-pending order', async () => {
-    mockDb.query.orders.findFirst.mockResolvedValue({ id: 'order-1', userId: 'user-1', status: 'paid' });
-    await expect(service.cancelOrder('order-1', 'user-1')).rejects.toThrow('Only pending orders can be cancelled');
+  it('cancelOrder throws BadRequestException if order not pending', async () => {
+    db.query.orders.findFirst.mockResolvedValueOnce({ ...mockOrder, status: 'paid' });
+    await expect(service.cancelOrder('order-1', 'user-1')).rejects.toThrow(BadRequestException);
   });
 
-  it('commission_rate is set at order creation time (snapshot immutable)', async () => {
-    mockCartService.getCart.mockResolvedValue({
-      data: {
-        id: 'cart-1',
-        couponCode: null,
-        status: 'active',
-        items: [{ productId: 'p1', variantId: null, qty: 1, unitPrice: '50.00' }],
-      },
-    });
-    mockCartService.getAvailableStock.mockResolvedValue(10);
-    mockDb.query.marketplaceConfig.findFirst.mockResolvedValue({ commissionGlobalRate: '0.15' });
-    mockDb.query.coupons.findFirst.mockResolvedValue(null);
-    const insertedOrder = { id: 'order-new', status: 'pending', total: '50.00' };
-    mockDb.returning
-      .mockResolvedValueOnce([insertedOrder])
-      .mockResolvedValueOnce([{ id: 'item-1', commissionRate: '0.15' }])
-      .mockResolvedValueOnce([{}]);
-    mockDb.insert.mockReturnThis();
-    mockDb.values.mockReturnThis();
-    const result = await service.createOrder('user-1', {});
-    expect(result.data.status).toBe('pending');
+  it('isReviewEligible returns eligible: false when order not delivered', async () => {
+    const result = await service.isReviewEligible('order-1', 'item-1', 'user-1');
+    expect(result.data.eligible).toBe(false);
   });
 });

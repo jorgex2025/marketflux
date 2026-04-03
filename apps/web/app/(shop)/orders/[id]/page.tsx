@@ -1,155 +1,207 @@
 'use client';
-
-import { useParams, useRouter } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useAuth } from '../../../../hooks/use-auth';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-interface OrderItem {
+type OrderItem = {
   id: string;
-  productName: string;
-  qty: number;
-  unitPrice: number;
-  commissionRate: string;
-}
+  productId: string;
+  quantity: number;
+  unitPrice: string;
+  total: string;
+  product?: { name: string; images: string[]; slug: string };
+};
 
-interface OrderDetail {
+type Order = {
   id: string;
   status: string;
-  total: number;
-  discountAmount: number;
-  createdAt: string;
-  items: OrderItem[];
+  total: string;
+  subtotal: string;
+  discount: string;
   couponCode?: string;
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Pendiente',
-  confirmed: 'Confirmado',
-  shipped: 'Enviado',
-  delivered: 'Entregado',
-  cancelled: 'Cancelado',
+  createdAt: string;
+  updatedAt: string;
+  items: OrderItem[];
 };
 
-const STATUS_COLOR: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  confirmed: 'bg-blue-100 text-blue-700',
-  shipped: 'bg-indigo-100 text-indigo-700',
-  delivered: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-600',
+const STATUS_LABEL: Record<string, { label: string; color: string }> = {
+  pending:    { label: 'Pendiente pago',  color: 'bg-yellow-100 text-yellow-700' },
+  paid:       { label: 'Pagado',          color: 'bg-green-100 text-green-700' },
+  processing: { label: 'Procesando',      color: 'bg-blue-100 text-blue-700' },
+  shipped:    { label: 'Enviado',         color: 'bg-purple-100 text-purple-700' },
+  delivered:  { label: 'Entregado',       color: 'bg-indigo-100 text-indigo-700' },
+  cancelled:  { label: 'Cancelado',       color: 'bg-red-100 text-red-700' },
 };
-
-async function fetchOrder(id: string): Promise<{ data: OrderDetail }> {
-  const res = await fetch(`${API}/api/orders/${id}`, { credentials: 'include' });
-  if (!res.ok) throw new Error('Orden no encontrada');
-  return res.json() as Promise<{ data: OrderDetail }>;
-}
 
 export default function OrderDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const qc = useQueryClient();
+  const { id }         = useParams<{ id: string }>();
+  const searchParams   = useSearchParams();
+  const router         = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['order', id],
-    queryFn: () => fetchOrder(id),
-    enabled: Boolean(id),
-  });
+  const [order,    setOrder]    = useState<Order | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelErr,  setCancelErr]  = useState<string | null>(null);
 
-  const cancel = useMutation({
-    mutationFn: () =>
-      fetch(`${API}/api/orders/${id}/cancel`, {
+  const paymentStatus = searchParams.get('payment');
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace(`/login?from=/orders/${id}`);
+    }
+  }, [authLoading, isAuthenticated, router, id]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !id) return;
+    fetch(`${API}/api/orders/${id}`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d: { data: Order }) => setOrder(d.data))
+      .finally(() => setLoading(false));
+  }, [isAuthenticated, id]);
+
+  async function handleCancel() {
+    if (!order) return;
+    setCancelling(true);
+    setCancelErr(null);
+    try {
+      const res = await fetch(`${API}/api/orders/${order.id}/cancel`, {
         method: 'PATCH',
         credentials: 'include',
-      }).then((r) => {
-        if (!r.ok) throw new Error('No se pudo cancelar la orden');
-        return r.json();
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['order', id] });
-      void qc.invalidateQueries({ queryKey: ['orders'] });
-    },
-  });
+      });
+      const json = await res.json() as { data?: Order; error?: { message: string } };
+      if (!res.ok) throw new Error(json.error?.message ?? 'Error al cancelar');
+      setOrder(json.data!);
+    } catch (e: unknown) {
+      setCancelErr(e instanceof Error ? e.message : 'Error inesperado');
+    } finally {
+      setCancelling(false);
+    }
+  }
 
-  if (isLoading) {
+  if (authLoading || loading) {
     return (
-      <main className="mx-auto max-w-2xl px-4 py-10">
-        <p>Cargando orden…</p>
-      </main>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
     );
   }
 
-  if (isError || !data) {
+  if (!order) {
     return (
-      <main className="mx-auto max-w-2xl px-4 py-10">
-        <p className="text-red-500">Orden no encontrada.</p>
-      </main>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <p className="text-gray-500">Pedido no encontrado.</p>
+        <Link href="/orders" className="text-indigo-600 hover:underline">Volver a mis pedidos</Link>
+      </div>
     );
   }
 
-  const order = data.data;
+  const s = STATUS_LABEL[order.status] ?? { label: order.status, color: 'bg-gray-100 text-gray-700' };
+  const hasDiscount = order.discount && parseFloat(order.discount) > 0;
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <button
-        onClick={() => router.back()}
-        className="mb-4 text-sm text-indigo-600 hover:underline"
-      >
-        ← Mis órdenes
-      </button>
+    <main className="max-w-3xl mx-auto px-4 py-12">
+      {/* Banner pago exitoso */}
+      {paymentStatus === 'success' && (
+        <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 mb-8 flex items-center gap-3">
+          <span className="text-2xl">✅</span>
+          <div>
+            <p className="font-semibold text-green-800">¡Pago completado!</p>
+            <p className="text-sm text-green-600">Tu pedido ha sido confirmado. Recibirás actualizaciones por email.</p>
+          </div>
+        </div>
+      )}
 
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">Orden # {order.id.slice(0, 8)}…</h1>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-medium ${
-            STATUS_COLOR[order.status] ?? 'bg-gray-100 text-gray-600'
-          }`}
-        >
-          {STATUS_LABEL[order.status] ?? order.status}
+      {paymentStatus === 'cancelled' && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-5 py-4 mb-8">
+          <p className="font-semibold text-yellow-800">Pago cancelado</p>
+          <p className="text-sm text-yellow-600">No se realizó ningún cargo. Puedes intentarlo de nuevo.</p>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <p className="text-xs text-gray-400 mb-1">Pedido #{order.id.slice(0, 8).toUpperCase()}</p>
+          <h1 className="text-2xl font-bold text-gray-900">Detalle del pedido</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {new Date(order.createdAt).toLocaleDateString('es-CO', {
+              year: 'numeric', month: 'long', day: 'numeric',
+            })}
+          </p>
+        </div>
+        <span className={`text-sm font-semibold px-3 py-1.5 rounded-full ${s.color}`}>
+          {s.label}
         </span>
       </div>
 
-      <p className="text-sm text-gray-500 mb-6">
-        Creada el {new Date(order.createdAt).toLocaleString()}
-      </p>
+      {/* Items */}
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+        {order.items.map((item, i) => {
+          const img = item.product?.images?.[0]
+            ?? `https://placehold.co/64x64/e0e7ff/6366f1?text=P`;
+          return (
+            <div
+              key={item.id}
+              className={`flex gap-4 p-4 ${i < order.items.length - 1 ? 'border-b' : ''}`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img} alt={item.product?.name ?? 'Producto'}
+                className="w-16 h-16 rounded-lg object-cover bg-gray-100 shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-gray-900">{item.product?.name ?? item.productId}</p>
+                <p className="text-sm text-gray-500">x{item.quantity} · ${parseFloat(item.unitPrice).toFixed(2)} c/u</p>
+              </div>
+              <p className="font-semibold text-gray-900">${parseFloat(item.total).toFixed(2)}</p>
+            </div>
+          );
+        })}
+      </div>
 
-      <ul className="divide-y border rounded">
-        {order.items.map((item) => (
-          <li key={item.id} className="flex justify-between px-4 py-3 text-sm">
-            <span>
-              {item.productName} × {item.qty}
-            </span>
-            <span>${(item.unitPrice * item.qty).toFixed(2)}</span>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-4 space-y-1 text-sm">
-        {order.couponCode && (
-          <div className="flex justify-between text-green-600">
-            <span>Cupón ({order.couponCode})</span>
-            <span>−${order.discountAmount.toFixed(2)}</span>
+      {/* Totales */}
+      <div className="bg-white rounded-xl shadow-sm p-5 mb-6 space-y-2">
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>Subtotal</span>
+          <span>${parseFloat(order.subtotal).toFixed(2)}</span>
+        </div>
+        {hasDiscount && (
+          <div className="flex justify-between text-sm text-green-600">
+            <span>Descuento{order.couponCode ? ` (${order.couponCode})` : ''}</span>
+            <span>-${parseFloat(order.discount).toFixed(2)}</span>
           </div>
         )}
-        <div className="flex justify-between font-semibold">
+        <div className="flex justify-between font-bold text-gray-900 text-base border-t pt-3">
           <span>Total</span>
-          <span>${order.total.toFixed(2)}</span>
+          <span>${parseFloat(order.total).toFixed(2)}</span>
         </div>
       </div>
 
-      {/* Tracking placeholder */}
-      <div className="mt-6 rounded border border-dashed border-gray-300 bg-gray-50 p-4 text-center text-sm text-gray-400">
-        📦 Tracking disponible en Fase 6 (Shipping)
+      {/* Acciones */}
+      <div className="flex gap-4">
+        <Link
+          href="/orders"
+          className="flex-1 text-center border rounded-xl py-3 text-sm font-medium hover:bg-gray-50"
+        >
+          Mis pedidos
+        </Link>
+
+        {order.status === 'pending' && (
+          <button
+            onClick={handleCancel}
+            disabled={cancelling}
+            className="flex-1 bg-red-500 text-white rounded-xl py-3 text-sm font-semibold
+                       hover:bg-red-600 disabled:opacity-50 transition"
+          >
+            {cancelling ? 'Cancelando...' : 'Cancelar pedido'}
+          </button>
+        )}
       </div>
 
-      {order.status === 'pending' && (
-        <button
-          onClick={() => cancel.mutate()}
-          disabled={cancel.isPending}
-          className="mt-6 w-full rounded border border-red-500 py-2 text-sm font-medium text-red-500 hover:bg-red-50 disabled:opacity-50"
-        >
-          {cancel.isPending ? 'Cancelando…' : 'Cancelar orden'}
-        </button>
+      {cancelErr && (
+        <p className="mt-4 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{cancelErr}</p>
       )}
     </main>
   );
