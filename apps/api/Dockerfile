@@ -17,10 +17,10 @@ COPY apps/api/ ./apps/api/
 COPY packages/ ./packages/
 
 # Build NestJS
-RUN pnpm --filter @marketflux/api run build
+RUN pnpm --filter api run build
 
-# Prune dev dependencies
-RUN pnpm --filter @marketflux/api deploy --prod /app/deploy
+# Prune dev dependencies — solo prod node_modules
+RUN pnpm --filter api deploy --prod /app/deploy
 
 # ─── Stage 2: Runner ────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
@@ -30,13 +30,18 @@ RUN addgroup --system --gid 1001 nodejs \
 
 WORKDIR /app
 
+# Copiar prod node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/deploy ./
+
+# FIX #7: copiar dist/ compilado (era el bug crítico — sin esto node no encuentra main.js)
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
 
 USER nestjs
 
 EXPOSE 3001
 
+# FIX: path corregido a /api/health (NestJS tiene globalPrefix 'api')
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:3001/health || exit 1
+  CMD wget -qO- http://localhost:3001/api/health || exit 1
 
 CMD ["node", "dist/main.js"]

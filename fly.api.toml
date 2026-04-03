@@ -7,31 +7,32 @@ primary_region = "mia"  # Miami — closest to Medellín
 
 [env]
   NODE_ENV = "production"
-  PORT = "3001"
+  PORT     = "3001"
 
 [http_service]
-  internal_port = 3001
-  force_https = true
-  auto_stop_machines = true
+  internal_port       = 3001
+  force_https         = true
+  auto_stop_machines  = true
   auto_start_machines = true
   min_machines_running = 0
 
   [http_service.concurrency]
-    type = "connections"
+    type       = "connections"
     hard_limit = 100
     soft_limit = 80
 
 [[vm]]
-  memory = "512mb"
+  memory   = "512mb"
   cpu_kind = "shared"
-  cpus = 1
+  cpus     = 1
 
 [checks]
   [checks.health]
     grace_period = "15s"
-    interval = "30s"
-    method = "GET"
-    path = "/health"
-    port = 3001
-    timeout = "10s"
-    type = "http"
+    interval     = "30s"
+    method       = "GET"
+    # FIX #6: NestJS usa globalPrefix 'api' → endpoint real es /api/health
+    path         = "/api/health"
+    port         = 3001
+    timeout      = "10s"
+    type         = "http"

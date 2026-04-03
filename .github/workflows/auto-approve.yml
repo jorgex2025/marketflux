@@ -1,0 +1,17 @@
+# Movido desde raíz del repo (era archivo huérfano — no se ejecutaba)
+# FIX #12: debe estar en .github/workflows/ para que GitHub Actions lo detecte
+name: Auto Approve Dependabot PRs
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Approve PR
+        uses: hmarr/auto-approve-action@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
