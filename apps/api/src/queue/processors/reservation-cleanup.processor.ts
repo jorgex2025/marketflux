@@ -27,7 +27,7 @@ export class ReservationCleanupProcessor extends WorkerHost {
       .set({ status: 'released' })
       .where(
         and(
-          eq(schema.inventoryReservations.status, 'pending'),
+          eq(schema.inventoryReservations.status, 'reserved'), // ✅ valor correcto del enum
           lt(schema.inventoryReservations.createdAt, threshold),
         ),
       )

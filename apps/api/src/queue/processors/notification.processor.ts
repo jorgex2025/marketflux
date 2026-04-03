@@ -13,13 +13,17 @@ export type NotificationEvent =
   | 'payout_sent'
   | 'dispute_opened'
   | 'review_received'
-  | 'chat_message';
+  | 'chat_message'
+  | 'low_stock'; // ✅ añadido para inventory-alert.processor
 
 export interface NotificationJobData {
   userId: string;
-  event: NotificationEvent;
-  title: string;
-  body: string;
+  type: NotificationEvent;
+  payload?: Record<string, unknown>;
+  // Campos para notificaciones de eventos
+  event?: NotificationEvent;
+  title?: string;
+  body?: string;
   meta?: Record<string, unknown>;
 }
 
@@ -32,16 +36,17 @@ export class NotificationProcessor extends WorkerHost {
   }
 
   async process(job: Job<NotificationJobData>): Promise<void> {
-    const { userId, event, title, body, meta } = job.data;
-    this.logger.log(`[${job.id}] Dispatching notification "${event}" to user ${userId}`);
+    const { userId, type, event, title, body, meta, payload } = job.data;
+    const resolvedType = type ?? event;
+    this.logger.log(`[${job.id}] Dispatching notification "${resolvedType}" to user ${userId}`);
 
     try {
       await this.notificationsService.create({
         userId,
-        type: event,
-        title,
-        body,
-        meta: meta ?? {},
+        type: resolvedType,
+        title: title ?? resolvedType ?? 'Notificación',
+        body: body ?? JSON.stringify(payload ?? {}),
+        meta: meta ?? payload ?? {},
         read: false,
       });
       this.logger.log(`[${job.id}] Notification stored for user ${userId}`);

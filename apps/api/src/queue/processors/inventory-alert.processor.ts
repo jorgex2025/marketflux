@@ -32,7 +32,6 @@ export class InventoryAlertProcessor extends WorkerHost {
   async process(job: Job<InventoryAlertJobData>): Promise<void> {
     const { productId, variantId, currentStock, sellerId } = job.data;
 
-    // Cargar alertas del producto (y variante si aplica)
     const conditions = variantId
       ? and(
           eq(schema.inventoryAlerts.productId, productId),
@@ -46,7 +45,7 @@ export class InventoryAlertProcessor extends WorkerHost {
       .where(conditions);
 
     for (const alert of alerts) {
-      // Verificación JS: stock actual <= threshold configur
+      // Dispara notificación si el stock actual es menor o igual al umbral configurado
       if (currentStock <= alert.threshold) {
         this.logger.warn(
           `Low stock: product ${productId}${
@@ -57,7 +56,7 @@ export class InventoryAlertProcessor extends WorkerHost {
         await this.notificationQueue.add(
           'low-stock',
           {
-            type: 'lowstock',
+            type: 'low_stock', // ✅ consistente con NotificationEvent
             userId: sellerId,
             payload: {
               productId,

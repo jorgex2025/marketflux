@@ -46,7 +46,7 @@ export class BulkProcessor extends WorkerHost {
             description: item.description ?? '',
             price: String(item.price ?? 0),
             storeId: sellerId,
-            categoryId: item.categoryId ?? '',
+            categoryId: item.categoryId ?? null, // ✅ null en lugar de '' para respetar FK
             status: 'active',
           });
         } else if (action === 'update' && item.id) {
@@ -61,7 +61,7 @@ export class BulkProcessor extends WorkerHost {
         } else if (action === 'delete' && item.id) {
           await this.db
             .update(schema.products)
-            .set({ status: 'deleted' })
+            .set({ status: 'archived' }) // ✅ 'archived' es el valor correcto del enum product_status
             .where(eq(schema.products.id, item.id));
         }
         processed++;
