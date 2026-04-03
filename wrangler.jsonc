@@ -1,3 +1,19 @@
+// Cloudflare Workers deploy config (Fase 11 — pendiente migrar desde Vercel)
+// Para activar: instalar @opennextjs/cloudflare, actualizar deploy.yml job deploy-web
 {
-  // @opennextjs/cloudflare — completar en Fase 11
+  "name": "marketflux-web",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": ".open-next/worker.js",
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "NEXT_PUBLIC_API_URL": "https://marketflux-api.fly.dev",
+    "NEXT_PUBLIC_APP_URL": "https://marketflux.pages.dev"
+  },
+  "[env.production]": {
+    "name": "marketflux-web-prod"
+  }
 }

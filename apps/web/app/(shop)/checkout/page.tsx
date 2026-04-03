@@ -1,188 +1,132 @@
 'use client';
-import { useState, useEffect } from 'react';
+
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../../../hooks/use-auth';
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-
-type CartItem = {
-  productId: string;
-  name: string;
-  qty: number;
-  unitPrice: string;
-  images?: string[];
-};
-
-type Cart = {
-  id: string;
-  items: CartItem[];
-  couponCode?: string;
-  subtotal?: string;
-  discount?: string;
-  total?: string;
-};
+import { useCartStore, selectCartTotal } from '@/src/store/cart.store';
+import { useToast } from '@/components/providers/toast-provider';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function CheckoutPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
-
-  const [cart,         setCart]         = useState<Cart | null>(null);
-  const [loading,      setLoading]      = useState(true);
-  const [placing,      setPlacing]      = useState(false);
-  const [error,        setError]        = useState<string | null>(null);
-  const [couponInput,  setCouponInput]  = useState('');
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.replace('/login?from=/checkout');
-    }
-  }, [authLoading, isAuthenticated, router]);
+  const { items, coupon, clearCart } = useCartStore();
+  const total = useCartStore(selectCartTotal);
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [couponInput, setCouponInput] = useState('');
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-    fetch(`${API}/api/cart`, { credentials: 'include' })
-      .then((r) => r.json())
-      .then((data: { data: Cart }) => setCart(data.data))
-      .catch(() => setError('No se pudo cargar el carrito'))
-      .finally(() => setLoading(false));
-  }, [isAuthenticated]);
+    if (!authLoading && !isAuthenticated) router.push('/login?from=/checkout');
+  }, [isAuthenticated, authLoading, router]);
 
-  async function handlePlaceOrder() {
-    if (!cart?.items?.length) return;
-    setPlacing(true);
-    setError(null);
+  const handleApplyCoupon = async () => {
+    if (!couponInput.trim()) return;
+    setApplyingCoupon(true);
+    try {
+      const res = await fetch('/api/proxy/cart/coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: couponInput.trim() }),
+      });
+      if (!res.ok) throw new Error('Cupón inválido');
+      toast('Cupón aplicado', 'success');
+    } catch (err: any) {
+      toast(err.message, 'error');
+    } finally { setApplyingCoupon(false); }
+  };
+
+  const handleCheckout = async () => {
+    if (items.length === 0) { toast('Tu carrito está vacío', 'error'); return; }
+    setLoading(true);
     try {
       // 1. Crear orden
-      const orderRes = await fetch(`${API}/api/orders`, {
+      const orderRes = await fetch('/api/proxy/orders', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ couponCode: coupon?.code }),
       });
-      const orderJson = await orderRes.json() as { data?: { id: string }; error?: { message: string } };
-      if (!orderRes.ok) throw new Error(orderJson.error?.message ?? 'Error al crear la orden');
-
-      const orderId = orderJson.data!.id;
+      if (!orderRes.ok) throw new Error('Error al crear la orden');
+      const { data: order } = await orderRes.json();
 
       // 2. Crear Stripe Checkout Session
-      const sessionRes = await fetch(`${API}/api/payments/checkout-session`, {
+      const sessionRes = await fetch('/api/proxy/payments/checkout-session', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({
+          orderId: order.id,
+          successUrl: `${window.location.origin}/account/orders/${order.id}?payment=success`,
+          cancelUrl: `${window.location.origin}/checkout?payment=cancelled`,
+        }),
       });
-      const sessionJson = await sessionRes.json() as { url?: string; error?: { message: string } };
-      if (!sessionRes.ok) throw new Error(sessionJson.error?.message ?? 'Error al crear sesión de pago');
-
-      // 3. Redirigir a Stripe
-      if (sessionJson.url) window.location.href = sessionJson.url;
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error inesperado');
-    } finally {
-      setPlacing(false);
+      if (!sessionRes.ok) throw new Error('Error al iniciar el pago');
+      const { data: session } = await sessionRes.json();
+      window.location.href = session.url;
+    } catch (err: any) {
+      toast(err.message, 'error');
+      setLoading(false);
     }
-  }
+  };
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (authLoading || items.length === 0) return (
+    <div className="max-w-2xl mx-auto px-6 py-20 text-center">
+      <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full mx-auto" />
+    </div>
+  );
 
-  if (!cart?.items?.length) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <p className="text-gray-500 text-lg">Tu carrito está vacío.</p>
-        <a href="/shop/search" className="text-indigo-600 hover:underline">Ir a la tienda</a>
-      </div>
-    );
-  }
-
-  const subtotal = cart.items.reduce((sum, i) => sum + parseFloat(i.unitPrice) * i.qty, 0);
+  const subtotal = items.reduce((acc, i) => acc + i.unitPrice * i.quantity, 0);
+  const discount = coupon ? (coupon.discountType === 'percentage' ? subtotal * coupon.discountValue / 100 : coupon.discountValue) : 0;
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        <h1 className="text-2xl font-bold text-gray-900 mb-8">Confirmar pedido</h1>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          {/* Items */}
-          <div className="md:col-span-2 space-y-4">
-            {cart.items.map((item) => (
-              <div key={item.productId} className="bg-white rounded-xl p-4 flex gap-4 shadow-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={item.images?.[0] ?? `https://placehold.co/80x80/e0e7ff/6366f1?text=${encodeURIComponent(item.name)}`}
-                  alt={item.name}
-                  className="w-20 h-20 rounded-lg object-cover bg-gray-100"
-                />
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-900">{item.name}</p>
-                  <p className="text-sm text-gray-500">Cantidad: {item.qty}</p>
-                  <p className="text-indigo-600 font-bold">
-                    ${(parseFloat(item.unitPrice) * item.qty).toFixed(2)}
-                  </p>
-                </div>
+    <div className="max-w-4xl mx-auto px-6 py-10">
+      <h1 className="text-2xl font-bold mb-8">Finalizar compra</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Items */}
+        <div className="space-y-3">
+          <h2 className="font-semibold">Tu pedido ({items.length} items)</h2>
+          {items.map((item) => (
+            <div key={item.id} className="flex gap-3 items-center">
+              {item.imageUrl && <img src={item.imageUrl} alt={item.name} className="w-12 h-12 object-cover rounded-lg" />}
+              <div className="flex-1">
+                <p className="text-sm font-medium line-clamp-1">{item.name}</p>
+                <p className="text-xs text-gray-400">x{item.quantity}</p>
               </div>
-            ))}
+              <p className="text-sm font-bold">${(item.unitPrice * item.quantity).toLocaleString('es-CO')}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Resumen + Pago */}
+        <div className="space-y-4">
+          {/* Cupón */}
+          <div className="flex gap-2">
+            <input value={couponInput} onChange={(e) => setCouponInput(e.target.value.toUpperCase())} placeholder="Código de cupón" className="flex-1 border rounded-xl px-3 py-2 text-sm" />
+            <button onClick={handleApplyCoupon} disabled={applyingCoupon} className="text-sm bg-gray-100 px-4 py-2 rounded-xl hover:bg-gray-200 disabled:opacity-50">{applyingCoupon ? '…' : 'Aplicar'}</button>
           </div>
 
-          {/* Resumen */}
-          <div className="bg-white rounded-xl p-6 shadow-sm h-fit space-y-4">
-            <h2 className="font-semibold text-gray-900">Resumen</h2>
-
-            {/* Cupón */}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Código de cupón"
-                value={couponInput}
-                onChange={(e) => setCouponInput(e.target.value)}
-                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <button className="text-sm text-indigo-600 font-medium hover:underline whitespace-nowrap">
-                Aplicar
-              </button>
-            </div>
-
-            <div className="border-t pt-4 space-y-2">
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Subtotal</span>
-                <span>${subtotal.toFixed(2)}</span>
+          {/* Totales */}
+          <div className="border rounded-2xl p-5 space-y-3">
+            <div className="flex justify-between text-sm"><span>Subtotal</span><span>${subtotal.toLocaleString('es-CO')}</span></div>
+            {discount > 0 && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Cupón ({coupon?.code})</span>
+                <span>-${discount.toLocaleString('es-CO')}</span>
               </div>
-              {cart.discount && parseFloat(cart.discount) > 0 && (
-                <div className="flex justify-between text-sm text-green-600">
-                  <span>Descuento</span>
-                  <span>-${parseFloat(cart.discount).toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex justify-between font-bold text-gray-900 text-base border-t pt-2">
-                <span>Total</span>
-                <span>${cart.total ? parseFloat(cart.total).toFixed(2) : subtotal.toFixed(2)}</span>
-              </div>
-            </div>
-
-            {error && (
-              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
             )}
-
+            <div className="border-t pt-3 flex justify-between font-bold">
+              <span>Total</span><span>${(subtotal - discount).toLocaleString('es-CO')}</span>
+            </div>
             <button
-              onClick={handlePlaceOrder}
-              disabled={placing}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold
-                         hover:bg-indigo-700 disabled:opacity-50 transition"
+              onClick={handleCheckout}
+              disabled={loading}
+              className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-semibold hover:bg-indigo-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
             >
-              {placing ? 'Procesando...' : 'Pagar con Stripe'}
+              {loading ? <><span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Procesando…</> : '🔒 Pagar con Stripe'}
             </button>
-
-            <p className="text-xs text-gray-400 text-center">
-              Pago seguro procesado por Stripe
-            </p>
+            <p className="text-xs text-center text-gray-400">Pago seguro procesado por Stripe</p>
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
