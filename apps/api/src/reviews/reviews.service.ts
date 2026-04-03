@@ -8,6 +8,7 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { DrizzleService } from '../database/database.module';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { ModerateReviewDto } from './dto/moderate-review.dto';
 import { ReplyReviewDto } from './dto/reply-review.dto';
@@ -25,17 +26,12 @@ export class ReviewsService {
   constructor(
     private readonly db: DrizzleService,
     @InjectQueue('reputation') private readonly reputationQueue: Queue,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
-  async listByProduct(
-    productId: string,
-    rating?: number,
-    page = 1,
-    limit = 20,
-  ) {
+  async listByProduct(productId: string, rating?: number, page = 1, limit = 20) {
     const db = this.db.db;
     const offset = (page - 1) * limit;
-
     const conditions = [
       eq(reviews.productId, productId),
       eq(reviews.status, 'approved'),
@@ -43,59 +39,31 @@ export class ReviewsService {
     if (rating) conditions.push(eq(reviews.rating, rating));
 
     const [rows, countResult] = await Promise.all([
-      db
-        .select()
-        .from(reviews)
-        .where(and(...conditions))
-        .orderBy(desc(reviews.createdAt))
-        .limit(limit)
-        .offset(offset),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(reviews)
-        .where(and(...conditions)),
+      db.select().from(reviews).where(and(...conditions)).orderBy(desc(reviews.createdAt)).limit(limit).offset(offset),
+      db.select({ count: sql<number>`count(*)::int` }).from(reviews).where(and(...conditions)),
     ]);
-
     const total = countResult[0]?.count ?? 0;
-    return {
-      data: rows,
-      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    };
+    return { data: rows, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }
 
   async create(userId: string, dto: CreateReviewDto) {
     const db = this.db.db;
 
-    // 1. Verificar que compró el producto en una orden entregada
     const eligible = await db
       .select({ id: orders.id })
       .from(orders)
       .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
-      .where(
-        and(
-          eq(orders.userId, userId),
-          eq(orders.status, 'delivered'),
-          eq(orderItems.productId, dto.productId),
-        ),
-      )
+      .where(and(eq(orders.userId, userId), eq(orders.status, 'delivered'), eq(orderItems.productId, dto.productId)))
       .limit(1);
 
     if (eligible.length === 0) {
-      throw new BadRequestException(
-        'Solo puedes reseñar productos de órdenes entregadas',
-      );
+      throw new BadRequestException('Solo puedes reseñar productos de órdenes entregadas');
     }
 
-    // 2. Verificar que no haya reseñado ya este producto (deduplicación)
     const existing = await db.query.reviews.findFirst({
-      where: and(
-        eq(reviews.userId, userId),
-        eq(reviews.productId, dto.productId),
-      ),
+      where: and(eq(reviews.userId, userId), eq(reviews.productId, dto.productId)),
     });
-    if (existing) {
-      throw new ConflictException('Ya reseñaste este producto');
-    }
+    if (existing) throw new ConflictException('Ya reseñaste este producto');
 
     const [review] = await db
       .insert(reviews)
@@ -115,16 +83,11 @@ export class ReviewsService {
 
   async update(userId: string, id: string, dto: Partial<CreateReviewDto>) {
     const db = this.db.db;
-    const [review] = await db
-      .select()
-      .from(reviews)
-      .where(eq(reviews.id, id))
-      .limit(1);
+    const [review] = await db.select().from(reviews).where(eq(reviews.id, id)).limit(1);
     if (!review) throw new NotFoundException('Review no encontrada');
     if (review.userId !== userId) throw new ForbiddenException();
-    if (review.status !== 'pending') {
+    if (review.status !== 'pending')
       throw new BadRequestException('Solo se pueden editar reseñas pendientes');
-    }
 
     const { productId: _pid, ...updateFields } = dto;
     const [updated] = await db
@@ -138,13 +101,8 @@ export class ReviewsService {
 
   async remove(_adminId: string, id: string) {
     const db = this.db.db;
-    const [review] = await db
-      .select()
-      .from(reviews)
-      .where(eq(reviews.id, id))
-      .limit(1);
+    const [review] = await db.select().from(reviews).where(eq(reviews.id, id)).limit(1);
     if (!review) throw new NotFoundException('Review no encontrada');
-
     await db.delete(reviews).where(eq(reviews.id, id));
     return { data: { deleted: true } };
   }
@@ -172,17 +130,12 @@ export class ReviewsService {
       .where(eq(stores.id, product.storeId))
       .limit(1);
 
-    if (!store || store.userId !== sellerId) {
+    if (!store || store.userId !== sellerId)
       throw new ForbiddenException('No eres el dueño de este producto');
-    }
 
     const [updated] = await db
       .update(reviews)
-      .set({
-        sellerReply: dto.reply,
-        sellerReplyAt: new Date(),
-        updatedAt: new Date(),
-      })
+      .set({ sellerReply: dto.reply, sellerReplyAt: new Date(), updatedAt: new Date() })
       .where(eq(reviews.id, id))
       .returning();
 
@@ -194,23 +147,13 @@ export class ReviewsService {
     const [existing] = await db
       .select()
       .from(reviewHelpful)
-      .where(
-        and(eq(reviewHelpful.reviewId, id), eq(reviewHelpful.userId, userId)),
-      )
+      .where(and(eq(reviewHelpful.reviewId, id), eq(reviewHelpful.userId, userId)))
       .limit(1);
 
     if (existing) {
-      await db
-        .delete(reviewHelpful)
-        .where(
-          and(
-            eq(reviewHelpful.reviewId, id),
-            eq(reviewHelpful.userId, userId),
-          ),
-        );
+      await db.delete(reviewHelpful).where(and(eq(reviewHelpful.reviewId, id), eq(reviewHelpful.userId, userId)));
       return { data: { helpful: false } };
     }
-
     await db.insert(reviewHelpful).values({ reviewId: id, userId });
     return { data: { helpful: true } };
   }
@@ -218,35 +161,17 @@ export class ReviewsService {
   async listPending(page = 1, limit = 20) {
     const db = this.db.db;
     const offset = (page - 1) * limit;
-
     const [rows, countResult] = await Promise.all([
-      db
-        .select()
-        .from(reviews)
-        .where(eq(reviews.status, 'pending'))
-        .orderBy(desc(reviews.createdAt))
-        .limit(limit)
-        .offset(offset),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(reviews)
-        .where(eq(reviews.status, 'pending')),
+      db.select().from(reviews).where(eq(reviews.status, 'pending')).orderBy(desc(reviews.createdAt)).limit(limit).offset(offset),
+      db.select({ count: sql<number>`count(*)::int` }).from(reviews).where(eq(reviews.status, 'pending')),
     ]);
-
     const total = countResult[0]?.count ?? 0;
-    return {
-      data: rows,
-      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    };
+    return { data: rows, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }
 
   async moderate(adminId: string, id: string, dto: ModerateReviewDto) {
     const db = this.db.db;
-    const [review] = await db
-      .select()
-      .from(reviews)
-      .where(eq(reviews.id, id))
-      .limit(1);
+    const [review] = await db.select().from(reviews).where(eq(reviews.id, id)).limit(1);
     if (!review) throw new NotFoundException('Review no encontrada');
 
     const [updated] = await db
@@ -256,10 +181,20 @@ export class ReviewsService {
       .returning();
 
     if (dto.status === 'approved') {
-      await this.reputationQueue.add('recalculate', {
-        productId: review.productId,
-      });
+      await this.reputationQueue.add('recalculate', { productId: review.productId });
     }
+
+    // Notificar al autor de la reseña
+    const isApproved = dto.status === 'approved';
+    await this.notificationsService.notify({
+      userId: review.userId,
+      type: 'review_moderated',
+      title: isApproved ? 'Tu reseña fue aprobada' : 'Tu reseña fue rechazada',
+      body: isApproved
+        ? 'Tu reseña ya es visible en el producto.'
+        : 'Tu reseña no cumplió las políticas de la plataforma.',
+      data: { reviewId: id, status: dto.status },
+    });
 
     return { data: updated };
   }
