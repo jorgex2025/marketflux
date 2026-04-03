@@ -1,17 +1,33 @@
 import type { Metadata } from 'next';
-import { QueryProvider } from '@/components/providers/query-provider';
+import { Inter } from 'next/font/google';
 import './globals.css';
+import { QueryProvider } from '@/components/providers/query-provider';
+import { ToastProvider } from '@/components/providers/toast-provider';
+import { CartDrawer } from '@/components/cart/cart-drawer';
+import { NotificationBell } from '@/components/notifications/notification-bell';
+import { MainNav } from '@/components/layout/main-nav';
+import { Footer } from '@/components/layout/footer';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: { default: 'MarketFlux', template: '%s | MarketFlux' },
-  description: 'Marketplace Multivendor',
+  description: 'Marketplace multivendor — compra y vende con confianza',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
-      <body className="bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-50">
-        <QueryProvider>{children}</QueryProvider>
+    <html lang="es" suppressHydrationWarning>
+      <body className={inter.className}>
+        <QueryProvider>
+          <ToastProvider>
+            <MainNav />
+            <CartDrawer />
+            <main className="min-h-screen">{children}</main>
+            <Footer />
+          </ToastProvider>
+        </QueryProvider>
       </body>
     </html>
   );
