@@ -1,30 +1,189 @@
-name: Deploy
+name: CI/CD — Build, Test & Deploy
+
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  deploy-api:
+  # ─────────────────────────────────────────
+  # 1. LINT & TYPE-CHECK (monorepo)
+  # ─────────────────────────────────────────
+  lint:
+    name: Lint & Type-check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Type-check
+        run: pnpm run type-check
+
+  # ─────────────────────────────────────────
+  # 2. UNIT & INTEGRATION TESTS
+  # ─────────────────────────────────────────
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: marketflux_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/marketflux_test
+      REDIS_URL: redis://localhost:6379
+      BETTER_AUTH_SECRET: ci-secret-not-for-production
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run DB migrations (test)
+        run: pnpm --filter @marketflux/api exec drizzle-kit migrate
+
+      - name: Run tests
+        run: pnpm run test --passWithNoTests
+
+  # ─────────────────────────────────────────
+  # 3. BUILD DOCKER IMAGE — API (NestJS)
+  # ─────────────────────────────────────────
+  build-api:
+    name: Build API Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/api:latest
+            ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────
+  # 4. DEPLOY API → FLY.IO
+  # ─────────────────────────────────────────
+  deploy-api:
+    name: Deploy API to Fly.io
+    runs-on: ubuntu-latest
+    needs: build-api
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy API
+        run: flyctl deploy --config fly.api.toml --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
+  # ─────────────────────────────────────────
+  # 5. DEPLOY WEB → VERCEL
+  # ─────────────────────────────────────────
   deploy-web:
+    name: Deploy Web to Vercel
     runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+
+      - uses: pnpm/action-setup@v3
         with:
-          version: 10
+          version: 9
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: pnpm
-      - run: pnpm install --frozen-lockfile=false
-      - run: pnpm --filter web build
-      - run: npx wrangler deploy
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy to Vercel (Production)
+        run: |
+          pnpm dlx vercel --token=${{ secrets.VERCEL_TOKEN }} \
+            --prod \
+            --yes \
+            --cwd apps/web
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

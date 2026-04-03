@@ -1,0 +1,37 @@
+# fly.api.toml — Fly.io config for MarketFlux API (NestJS)
+app = "marketflux-api"
+primary_region = "mia"  # Miami — closest to Medellín
+
+[build]
+  dockerfile = "apps/api/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3001"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[checks]
+  [checks.health]
+    grace_period = "15s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    port = 3001
+    timeout = "10s"
+    type = "http"

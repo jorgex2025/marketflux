@@ -1,24 +1,90 @@
+version: '3.9'
+
 services:
+  # ─── PostgreSQL ───────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    ports: ["5432:5432"]
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: marketplace
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes: [postgres_data:/var/lib/postgresql/data]
+      POSTGRES_USER: marketflux
+      POSTGRES_PASSWORD: marketflux
+      POSTGRES_DB: marketflux
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U marketflux']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ─── Redis ────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ─── Meilisearch ──────────────────────────────────────────────────────────
   meilisearch:
-    image: getmeili/meilisearch:v1.13
-    ports: ["7700:7700"]
+    image: getmeili/meilisearch:v1.7
+    restart: unless-stopped
     environment:
       MEILI_MASTER_KEY: masterKey
-    volumes: [meilisearch_data:/meili_data]
+      MEILI_ENV: development
+    ports:
+      - '7700:7700'
+    volumes:
+      - meili_data:/meili_data
+
+  # ─── API (NestJS) ─────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://marketflux:marketflux@postgres:5432/marketflux
+      REDIS_URL: redis://redis:6379
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_ADMIN_API_KEY: masterKey
+      BETTER_AUTH_SECRET: dev-secret-change-in-production
+      PORT: 3001
+    ports:
+      - '3001:3001'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3001/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+  # ─── Web (Next.js) ────────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:3001
+      NODE_ENV: development
+    ports:
+      - '3000:3000'
 
 volumes:
   postgres_data:
-  meilisearch_data:
+  meili_data:
