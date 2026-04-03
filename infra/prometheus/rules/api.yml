@@ -1,0 +1,47 @@
+groups:
+  - name: marketflux-api
+    rules:
+      # Alta tasa de errores 5xx
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alta tasa de errores 5xx (>5%)"
+          description: "Tasa de error: {{ $value | humanizePercentage }}"
+
+      # Latencia alta (p95 > 2s)
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, route)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latencia alta en ruta {{ $labels.route }}"
+          description: "p95 = {{ $value }}s"
+
+      # API caída (no responde)
+      - alert: ApiDown
+        expr: up{job="marketflux-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MarketFlux API no responde"
+          description: "El scrape de Prometheus falló por más de 1 minuto"
+
+      # Queue BullMQ acumulando jobs
+      - alert: QueueDepthHigh
+        expr: bullmq_queue_depth > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue {{ $labels.queue }} con más de 1000 jobs pendientes"

@@ -1,0 +1,14 @@
+{
+  "name": "@marketflux/monitoring",
+  "version": "0.0.1",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@sentry/node": "^8.0.0",
+    "@sentry/nextjs": "^8.0.0",
+    "@sentry/profiling-node": "^8.0.0",
+    "prom-client": "^15.1.0"
+  }
+}
