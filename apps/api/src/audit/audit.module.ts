@@ -1,6 +1,12 @@
 import { Module } from '@nestjs/common';
-import { AuditController } from './audit.controller';
 import { AuditService } from './audit.service';
+import { AuditController } from './audit.controller';
+import { DrizzleModule } from '../drizzle/drizzle.module';
 
-@Module({ controllers: [AuditController], providers: [AuditService] })
+@Module({
+  imports: [DrizzleModule],
+  providers: [AuditService],
+  controllers: [AuditController],
+  exports: [AuditService],
+})
 export class AuditModule {}

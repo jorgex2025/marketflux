@@ -6,7 +6,7 @@ import Redis from 'ioredis';
 import * as schema from '../drizzle/schema';
 import { eq } from 'drizzle-orm';
 
-const CACHE_TTL_SECONDS = 300;
+const CACHE_TTL_SECONDS = 300; // 5 min
 const CACHE_PREFIX = 'mf:config:';
 
 @Injectable()
@@ -51,12 +51,12 @@ export class MarketplaceConfigService {
         target: schema.marketplaceConfig.key,
         set: { value, description: description ?? null, updatedAt: new Date() },
       });
+
+    // Invalidate cache
     await this.redis.del(`${CACHE_PREFIX}${key}`, `${CACHE_PREFIX}all`);
   }
 
-  async setBulk(
-    entries: Array<{ key: string; value: string; description?: string }>,
-  ): Promise<void> {
+  async setBulk(entries: Array<{ key: string; value: string; description?: string }>): Promise<void> {
     for (const entry of entries) {
       await this.set(entry.key, entry.value, entry.description);
     }
