@@ -1,0 +1,112 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'URL to test against (default: staging)'
+        required: false
+        default: 'https://marketflux.vercel.app'
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: marketflux_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/marketflux_test
+      REDIS_URL: redis://localhost:6379
+      BETTER_AUTH_SECRET: e2e-secret-not-for-production
+      NODE_ENV: test
+      BASE_URL: ${{ github.event.inputs.base_url || 'http://localhost:3000' }}
+      API_URL: http://localhost:3001
+      TEST_BUYER_EMAIL: ${{ secrets.TEST_BUYER_EMAIL }}
+      TEST_BUYER_PASSWORD: ${{ secrets.TEST_BUYER_PASSWORD }}
+      TEST_SELLER_EMAIL: ${{ secrets.TEST_SELLER_EMAIL }}
+      TEST_SELLER_PASSWORD: ${{ secrets.TEST_SELLER_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @marketflux/e2e exec playwright install --with-deps chromium
+
+      - name: Run DB migrations
+        run: pnpm --filter @marketflux/api exec drizzle-kit migrate
+
+      - name: Seed test data
+        run: pnpm --filter @marketflux/api exec tsx src/db/seed.ts
+
+      - name: Start API (background)
+        run: pnpm --filter @marketflux/api exec node dist/main.js &
+        env:
+          PORT: 3001
+
+      - name: Start Web (background)
+        run: pnpm --filter @marketflux/web exec node .next/standalone/server.js &
+        env:
+          PORT: 3000
+
+      - name: Wait for services
+        run: |
+          npx wait-on http://localhost:3001/health http://localhost:3000 --timeout 60000
+
+      - name: Run E2E tests
+        run: pnpm --filter @marketflux/e2e test
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: apps/e2e/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results (JUnit)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-results-${{ github.run_id }}
+          path: apps/e2e/results/junit.xml
+          retention-days: 7
