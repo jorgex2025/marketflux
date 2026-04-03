@@ -1,28 +1,32 @@
-.PHONY: setup dev migrate seed build lint test typecheck
+.PHONY: setup dev build lint test typecheck migrate seed docker-up docker-down
 
 setup:
-	cp apps/api/.env.example apps/api/.env || true
-	cp apps/web/.env.local.example apps/web/.env.local || true
+	cp .env.example .env
 	pnpm install
 
-dev:
-	docker compose up -d
+dev: docker-up
 	pnpm dev
 
-migrate:
-	pnpm --filter api drizzle-kit push
-
-seed:
-	pnpm --filter api tsx src/database/seed.ts
-
 build:
-	pnpm -r build
+	pnpm build
 
 lint:
-	pnpm -r lint
+	pnpm lint
 
 test:
-	pnpm -r test
+	pnpm test
 
 typecheck:
-	pnpm -r typecheck
+	pnpm type-check
+
+migrate:
+	pnpm --filter @marketflux/api exec drizzle-kit push
+
+seed:
+	pnpm --filter @marketflux/api exec tsx src/db/seed.ts
+
+docker-up:
+	docker compose up -d postgres redis meilisearch
+
+docker-down:
+	docker compose down
