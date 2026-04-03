@@ -1,62 +1,75 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
 import { AuthGuard } from './auth.guard';
-import * as authModule from '../../auth/auth.service';
+import { Reflector } from '@nestjs/core';
+import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 
-vi.mock('../../auth/auth.service', () => ({
-  auth: {
-    api: {
-      getSession: vi.fn(),
-    },
-  },
-  AuthService: class {},
-}));
+const mockDb = {
+  select: vi.fn().mockReturnThis(),
+  from:   vi.fn().mockReturnThis(),
+  innerJoin: vi.fn().mockReturnThis(),
+  where:  vi.fn().mockReturnThis(),
+  limit:  vi.fn().mockResolvedValue([]),
+};
 
-const mockContext = (headers: Record<string, string> = {}, isPublic = false) => ({
-  getHandler: () => ({}),
-  getClass: () => ({}),
-  switchToHttp: () => ({
-    getRequest: () => ({ headers, user: undefined, session: undefined }),
-  }),
-} as unknown as ExecutionContext);
+const mockDrizzle = { db: mockDb };
+
+function buildContext(overrides: {
+  isPublic?: boolean;
+  token?: string;
+  session?: Record<string, unknown>;
+}) {
+  const reflector = new Reflector();
+  vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(overrides.isPublic ?? false);
+
+  const request = {
+    cookies: overrides.token ? { 'better-auth.session_token': overrides.token } : {},
+    headers: {},
+    user: undefined as unknown,
+  };
+
+  mockDb.limit.mockResolvedValue(
+    overrides.session ? [overrides.session] : [],
+  );
+
+  const ctx = {
+    getHandler: () => ({}),
+    getClass:   () => ({}),
+    switchToHttp: () => ({ getRequest: () => request }),
+  } as unknown as ExecutionContext;
+
+  return { guard: new AuthGuard(reflector, mockDrizzle as never), ctx, request };
+}
 
 describe('AuthGuard', () => {
-  let guard: AuthGuard;
-  let reflector: Reflector;
+  beforeEach(() => vi.clearAllMocks());
 
-  beforeEach(() => {
-    reflector = new Reflector();
-    guard = new AuthGuard(reflector);
+  it('permite rutas públicas sin token', async () => {
+    const { guard, ctx } = buildContext({ isPublic: true });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
   });
 
-  it('allows public routes without session', async () => {
-    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(true);
-    const result = await guard.canActivate(mockContext());
-    expect(result).toBe(true);
+  it('lanza UnauthorizedException sin token', async () => {
+    const { guard, ctx } = buildContext({});
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it('throws UnauthorizedException when no session', async () => {
-    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-    vi.mocked(authModule.auth.api.getSession).mockResolvedValue(null);
-    await expect(guard.canActivate(mockContext())).rejects.toThrow(UnauthorizedException);
+  it('lanza UnauthorizedException con token inválido (sin sesión en DB)', async () => {
+    const { guard, ctx } = buildContext({ token: 'invalid-token' });
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it('attaches user and session to request when session is valid', async () => {
-    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-    const fakeSession = { user: { id: 'u1', role: 'buyer' }, session: { id: 's1' } };
-    vi.mocked(authModule.auth.api.getSession).mockResolvedValue(fakeSession as never);
-
-    const req = { headers: {}, user: undefined, session: undefined };
-    const ctx = {
-      getHandler: () => ({}),
-      getClass: () => ({}),
-      switchToHttp: () => ({ getRequest: () => req }),
-    } as unknown as ExecutionContext;
-
+  it('inyecta user en request con sesión válida', async () => {
+    const session = {
+      sessionId: 'ses_1',
+      userId: 'usr_1',
+      expiresAt: new Date(Date.now() + 10_000),
+      userRole: 'buyer',
+      userName: 'Test User',
+      userEmail: 'test@example.com',
+    };
+    const { guard, ctx, request } = buildContext({ token: 'valid-token', session });
     const result = await guard.canActivate(ctx);
     expect(result).toBe(true);
-    expect(req.user).toEqual(fakeSession.user);
-    expect(req.session).toEqual(fakeSession.session);
+    expect((request as { user: unknown }).user).toMatchObject({ id: 'usr_1', role: 'buyer' });
   });
 });

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { StorageModule } from './storage/storage.module';
 import { DatabaseModule } from './database/database.module';
@@ -27,11 +29,17 @@ import { BannersModule } from './banners/banners.module';
 import { MarketplaceConfigModule } from './config/config.module';
 import { AuditModule } from './audit/audit.module';
 import { ReportsModule } from './reports/reports.module';
+import { AuthGuard } from './common/guards/auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { MaintenanceGuard } from './common/guards/maintenance.guard';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 @Module({
   imports: [
-    // ConfigModule global — carga .env en todos los módulos
     ConfigModule.forRoot({ isGlobal: true }),
+    // Rate limiting: 100 req/min global, payments override a 10/min en su controller
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     DatabaseModule,
     AuthModule,
     StorageModule,
@@ -59,6 +67,17 @@ import { ReportsModule } from './reports/reports.module';
     MarketplaceConfigModule,
     AuditModule,
     ReportsModule,
+  ],
+  providers: [
+    // Orden de guards: Throttler → Maintenance → Auth → Roles
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: MaintenanceGuard },
+    { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+    // Filter global: formato { error: { code, message, details? } }
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    // Interceptor: POST/PATCH/DELETE → audit_logs
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
 export class AppModule {}
