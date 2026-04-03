@@ -1,59 +1,40 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Logger, Inject } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { Injectable, Inject, Logger } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and, lt, sql } from 'drizzle-orm';
-import * as schema from '../../database/schema/index';
-import { DATABASE_TOKEN } from '../../database/database.module';
+import { DATABASE_CONNECTION } from '../../database/database.module';
+import * as schema from '../../database/schema';
+import { eq, and, lt } from 'drizzle-orm';
 
 export const RESERVATION_CLEANUP_QUEUE = 'reservation-cleanup';
 
 @Processor(RESERVATION_CLEANUP_QUEUE)
-@Injectable()
 export class ReservationCleanupProcessor extends WorkerHost {
   private readonly logger = new Logger(ReservationCleanupProcessor.name);
 
   constructor(
-    @Inject(DATABASE_TOKEN)
+    @Inject(DATABASE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
   ) {
     super();
   }
 
-  async process(job: Job): Promise<void> {
-    this.logger.log(`Running reservation cleanup job: ${job.id}`);
-    const now = new Date();
+  async process(_job: Job): Promise<void> {
+    const threshold = new Date(Date.now() - 15 * 60 * 1000); // 15 minutos
 
-    const expired = await this.db
-      .select()
-      .from(schema.inventoryReservations)
+    const released = await this.db
+      .update(schema.inventoryReservations)
+      .set({ status: 'released' })
       .where(
         and(
-          eq(schema.inventoryReservations.status, 'reserved'),
-          lt(schema.inventoryReservations.expiresAt, now),
+          eq(schema.inventoryReservations.status, 'reserved'), // ✅ valor correcto del enum
+          lt(schema.inventoryReservations.createdAt, threshold),
         ),
-      );
+      )
+      .returning({ id: schema.inventoryReservations.id });
 
-    this.logger.log(`Found ${expired.length} expired reservations`);
-
-    for (const reservation of expired) {
-      await this.db
-        .update(schema.inventoryReservations)
-        .set({ status: 'released' })
-        .where(eq(schema.inventoryReservations.id, reservation.id));
-
-      if (reservation.variantId) {
-        await this.db
-          .update(schema.productVariants)
-          .set({ stock: sql`${schema.productVariants.stock} + ${reservation.qty}` })
-          .where(eq(schema.productVariants.id, reservation.variantId));
-      } else {
-        await this.db
-          .update(schema.products)
-          .set({ stock: sql`${schema.products.stock} + ${reservation.qty}` })
-          .where(eq(schema.products.id, reservation.productId));
-      }
-      this.logger.log(`Released reservation ${reservation.id}`);
+    if (released.length > 0) {
+      this.logger.log(`[reservation-cleanup] ${released.length} reservas liberadas`);
     }
   }
 }
