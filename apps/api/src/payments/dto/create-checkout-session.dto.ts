@@ -1,14 +1,15 @@
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class CreateCheckoutSessionDto {
-  @IsUUID()
-  orderId!: string;
+  @IsNotEmpty()
+  @IsString()
+  orderId: string;
 
   @IsOptional()
-  @IsString()
+  @IsUrl()
   successUrl?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUrl()
   cancelUrl?: string;
 }
