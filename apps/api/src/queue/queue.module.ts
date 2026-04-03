@@ -10,6 +10,10 @@ import { PayoutProcessor, PAYOUT_QUEUE } from './processors/payout.processor';
 import { OrderExpiryProcessor, ORDER_EXPIRY_QUEUE } from './processors/order-expiry.processor';
 import { IndexingProcessor, INDEXING_QUEUE } from './processors/indexing.processor';
 import { NotificationProcessor, NOTIFICATION_QUEUE } from './processors/notification.processor';
+import { BulkProcessor, BULK_QUEUE } from './processors/bulk.processor';
+import { PaymentProcessor, PAYMENT_QUEUE } from './processors/payment.processor';
+import { InventoryAlertProcessor, INVENTORY_ALERT_QUEUE } from './processors/inventory-alert.processor';
+import { ReputationProcessor, REPUTATION_QUEUE } from './processors/reputation.processor';
 
 import { CronSchedulerService } from './cron-scheduler.service';
 
@@ -29,6 +33,10 @@ import { CronSchedulerService } from './cron-scheduler.service';
       { name: ORDER_EXPIRY_QUEUE },
       { name: INDEXING_QUEUE },
       { name: NOTIFICATION_QUEUE },
+      { name: BULK_QUEUE },
+      { name: PAYMENT_QUEUE },
+      { name: INVENTORY_ALERT_QUEUE },
+      { name: REPUTATION_QUEUE },
     ),
     DatabaseModule,
     NotificationsModule,
@@ -41,6 +49,10 @@ import { CronSchedulerService } from './cron-scheduler.service';
     OrderExpiryProcessor,
     IndexingProcessor,
     NotificationProcessor,
+    BulkProcessor,
+    PaymentProcessor,
+    InventoryAlertProcessor,
+    ReputationProcessor,
   ],
   exports: [BullModule],
 })
