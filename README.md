@@ -1,98 +1,81 @@
 # MarketFlux — Marketplace Multivendor
 
-Monorepo `pnpm` + `Turborepo`. Stack 2026: Next.js 16 · NestJS 11 · Drizzle ORM · Neon PostgreSQL · Better Auth · Stripe Connect · BullMQ · Meilisearch · Socket.io · Cloudflare R2.
+Monorepo full-stack construido con Next.js 16 + NestJS 11 + Drizzle ORM + Neon Postgres.
 
-## Arquitectura
+## Stack
 
+| Capa | Tecnología |
+|---|---|
+| Frontend | Next.js 16 + Tailwind + shadcn/ui + TanStack Query |
+| Backend | NestJS 11 modular |
+| Auth | Better Auth 1.5 (Drizzle adapter) |
+| DB | Neon Postgres + Drizzle ORM 0.44 |
+| Cache/Colas | Upstash Redis + BullMQ 5 |
+| Búsqueda | Meilisearch 1.13 |
+| Pagos | Stripe Connect Express + MercadoPago |
+| Real-time | Socket.io 4 + Redis pub/sub |
+| Storage | Cloudflare R2 |
+| Deploy API | Fly.io |
+| Deploy Web | Cloudflare Workers (OpenNext) |
+| Tests | Vitest 3 + Playwright |
+| CI/CD | GitHub Actions |
+
+## Quick Start
+
+```bash
+# 1. Setup
+make setup
+
+# 2. Levantar servicios docker
+make docker-up
+
+# 3. Migrar DB
+make migrate
+
+# 4. Seed
+make seed
+
+# 5. Dev
+make dev
 ```
-┌──────────────────────────────────────────────┐
-Vercel  (apps/web — Next.js 16 App Router)
-Routes: (shop)(auth)(account)(vendor)(admin)
-└──────────────────────┤
-                      │ HTTP / WebSocket
-┌─────────────────────┤
-Fly.io  (apps/api — NestJS 11)
-REST /api  ·  WS /chat /notif
-└──────────────────────────────────────────────┘
-   │          │          │
-Neon       Upstash    Meilisearch
-Postgres   Redis       v1.13
-(Drizzle)  (BullMQ)
-                   Cloudflare R2 (media)
-```
 
-## Estructura del monorepo
+## Estructura
 
 ```
 marketflux/
 ├── apps/
-│   ├── api/          # NestJS 11
-│   └── web/          # Next.js 16
+│   ├── web/        # Next.js 16
+│   └── api/        # NestJS 11
 ├── packages/
-│   ├── types/        # ApiResponse<T>, UserRole, OrderStatus
-│   ├── validators/   # Zod schemas compartidos
-│   ├── monitoring/   # Sentry + Prometheus metrics
+│   ├── types/
+│   ├── validators/
 │   ├── eslint-config/
 │   └── typescript-config/
-├── infra/
-│   ├── prometheus/   # prometheus.yml + alertas
-│   └── grafana/      # dashboards JSON
-├── docs/           # documentación por fase
-├── .github/
-│   └── workflows/
-│       ├── deploy.yml      # CI/CD completo
-│       ├── pr-checks.yml   # validación en PRs
-│       └── uptime.yml      # ping cada 5 min
 ├── turbo.json
-├── pnpm-workspace.yaml
 ├── docker-compose.yml
-├── fly.api.toml
-└── .env.example
+├── Makefile
+└── wrangler.jsonc
 ```
 
-## Setup local rápido
+## Fases completadas
 
-```bash
-git clone https://github.com/jorgex2025/marketflux
-cd marketflux
-make setup      # copia .env + pnpm install
-make dev        # Docker (postgres+redis+meili) + api:3001 + web:3000
-make migrate    # crea tablas en Postgres
-make seed       # datos iniciales
-```
+- ✅ Fase 0 — Setup monorepo
+- ✅ Fase 1 — Schema Drizzle (36 tablas) + seed
+- ✅ Fase 2 — Auth + guards + audit
+- ✅ Fase 3 — Catálogo + Storage R2 + Meilisearch
+- ✅ Fase 4 — Inventario + Carrito + Órdenes
+- ✅ Fase 5 — Stripe + MercadoPago + Payouts
+- ✅ Fase 6 — Reviews + Reputación
+- ✅ Fase 7 — Shipping + Returns + Disputes
+- ✅ Fase 8 — Chat WebSocket + Notificaciones
+- ✅ Fase 9 — Meilisearch avanzado + BullMQ processors
+- ✅ Fase 10 — Analytics + Config + Audit
+- ✅ Fase 11 — Frontend completo (dashboards + páginas)
+- ✅ Fase 12 — CI/CD + Docker + Fly.io + Vercel
+- ✅ Fase 13 — Monitoring (Sentry + Prometheus + Grafana)
+- ✅ Fase 14 — E2E Tests (Playwright + POM)
 
-## Estado de fases
+## Desviaciones documentadas
 
-| Fase | Descripción | Estado |
-|------|-------------|--------|
-| 0 | Monorepo setup (pnpm + Turborepo) | ✅ |
-| 1 | Database schema (Drizzle + Neon) | ✅ |
-| 2 | Auth, roles y auditía (Better Auth) | ✅ |
-| 3 | Catálogo y storage (R2) | ✅ |
-| 4 | Inventario, carrito y órdenes | ✅ |
-| 5 | Pagos, comisiones y payouts (Stripe) | ✅ |
-| 6 | Reviews y reputación | ✅ |
-| 7 | Shipping, devoluciones y disputas | ✅ |
-| 8 | Chat y notificaciones (Socket.io) | ✅ |
-| 9 | Búsqueda (Meilisearch) + Queue (BullMQ) | ✅ |
-| 10 | Analytics + Config + Audit admin | ✅ |
-| 11 | Frontend integration — Seller & Admin | ✅ |
-| 12 | Deploy & CI/CD (Fly.io + Vercel + Docker) | ✅ |
-| 13 | Monitoring (Sentry + Prometheus + Grafana) | ✅ |
-
-## GitHub Secrets requeridos
-
-| Secret | Descripción |
-|--------|-------------|
-| `FLY_API_TOKEN` | `flyctl auth token` |
-| `VERCEL_TOKEN` | Vercel Dashboard → Tokens |
-| `VERCEL_ORG_ID` | ID org Vercel |
-| `VERCEL_PROJECT_ID` | ID proyecto web Vercel |
-| `DATABASE_URL` | Neon connection string |
-| `STRIPE_SECRET_KEY` | `sk_live_...` |
-| `BETTER_AUTH_SECRET` | `openssl rand -hex 32` |
-| `SENTRY_DSN` | Sentry project DSN |
-
-## Costo estimado en producción
-
-~$3.32/mes (Fly.io shared-cpu-1x 512MB). Todo lo demás en free tier.
+- Deploy web usa Vercel en lugar de Cloudflare Workers (migración pendiente con wrangler.jsonc)
+- `auto-approve.yml` movido desde raíz a `.github/workflows/`
