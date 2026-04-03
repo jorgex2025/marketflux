@@ -1,40 +1,57 @@
 # Dependencies
-node_modules
-.pnpm-store
+node_modules/
+.pnp
+.pnp.js
 
 # Build outputs
-dist
-.next
-.turbo
-out
-build
-coverage
+dist/
+.next/
+out/
+build/
 
-# Environment
+# Environment files
 .env
 .env.local
 .env.*.local
+!.env.example
+!.env.local.example
 
 # Logs
+logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*
 
-# Editor
-.vscode
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Runtime
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output
+
+# Cache
+.turbo/
+.cache/
+*.tsbuildinfo
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Docker
-*.pid
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Uploads locales
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Uploads / local storage
 uploads/
+*.sqlite
+*.db
