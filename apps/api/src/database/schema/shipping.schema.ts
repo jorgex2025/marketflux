@@ -9,6 +9,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createId } from '@paralleldrive/cuid2';
 import { orders } from './orders.schema';
+import { users } from './auth.schema';
 
 export const shipmentStatusEnum = pgEnum('shipment_status', [
   'pending',
@@ -44,6 +45,9 @@ export const shipments = pgTable('shipments', {
   orderId: text('order_id')
     .notNull()
     .references(() => orders.id),
+  sellerId: text('seller_id')
+    .notNull()
+    .references(() => users.id),
   trackingNumber: text('tracking_number'),
   carrier: text('carrier'),
   status: shipmentStatusEnum('status').default('pending').notNull(),

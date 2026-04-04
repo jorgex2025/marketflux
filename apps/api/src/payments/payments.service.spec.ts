@@ -12,17 +12,19 @@ const mockOrder = {
   stripeSessionId: null,
 };
 
-const mockDb = {
-  query: {
-    orders: { findFirst: vi.fn().mockResolvedValue(mockOrder) },
-    payments: { findFirst: vi.fn() },
+const mockDrizzle = {
+  db: {
+    query: {
+      orders: { findFirst: vi.fn().mockResolvedValue(mockOrder) },
+      payments: { findFirst: vi.fn() },
+    },
+    insert: vi.fn().mockReturnThis(),
+    values: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockResolvedValue([{}]),
+    update: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue(undefined),
   },
-  insert: vi.fn().mockReturnThis(),
-  values: vi.fn().mockReturnThis(),
-  returning: vi.fn().mockResolvedValue([{}]),
-  update: vi.fn().mockReturnThis(),
-  set: vi.fn().mockReturnThis(),
-  where: vi.fn().mockResolvedValue(undefined),
 };
 
 const mockConfig = {
@@ -56,7 +58,7 @@ describe('PaymentsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = new PaymentsService(
-      mockDb as any,
+      mockDrizzle as any,
       mockConfig as any,
       mockOrdersService as any,
     );
@@ -73,7 +75,7 @@ describe('PaymentsService', () => {
   });
 
   it('createCheckoutSession throws NotFoundException for unknown order', async () => {
-    mockDb.query.orders.findFirst.mockResolvedValueOnce(null);
+    mockDrizzle.db.query.orders.findFirst.mockResolvedValueOnce(null);
     await expect(
       service.createCheckoutSession({ orderId: 'bad' }, 'user-1'),
     ).rejects.toThrow(NotFoundException);
@@ -86,7 +88,20 @@ describe('PaymentsService', () => {
   });
 
   it('createCheckoutSession throws BadRequestException for non-pending order', async () => {
-    mockDb.query.orders.findFirst.mockResolvedValueOnce({ ...mockOrder, status: 'paid' });
+    mockDrizzle.db.query.orders.findFirst.mockResolvedValueOnce({ ...mockOrder, status: 'paid' });
+    await expect(
+      service.createCheckoutSession({ orderId: 'order-1' }, 'user-1'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('createCheckoutSession throws BadRequestException for wrong user', async () => {
+    await expect(
+      service.createCheckoutSession({ orderId: 'order-1' }, 'other-user'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('createCheckoutSession throws BadRequestException for non-pending order', async () => {
+    mockDrizzle.db.query.orders.findFirst.mockResolvedValueOnce({ ...mockOrder, status: 'paid' });
     await expect(
       service.createCheckoutSession({ orderId: 'order-1' }, 'user-1'),
     ).rejects.toThrow(BadRequestException);

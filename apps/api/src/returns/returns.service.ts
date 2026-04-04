@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { DrizzleService } from '../database/drizzle.service';
+import { DrizzleService } from '../database/database.module';
 import {
   returns,
   orders,
@@ -28,7 +28,7 @@ export class ReturnsService {
   }
 
   async create(dto: CreateReturnDto, buyerId: string) {
-    const [order] = await this.db.client
+    const [order] = await this.db.db
       .select()
       .from(orders)
       .where(and(eq(orders.id, dto.orderId), eq(orders.userId, buyerId)));
@@ -40,7 +40,7 @@ export class ReturnsService {
       );
     }
 
-    const [returnRecord] = await this.db.client
+    const [returnRecord] = await this.db.db
       .insert(returns)
       .values({
         orderId: dto.orderId,
@@ -56,7 +56,7 @@ export class ReturnsService {
   }
 
   async findMy(buyerId: string) {
-    const data = await this.db.client
+    const data = await this.db.db
       .select()
       .from(returns)
       .where(eq(returns.buyerId, buyerId));
@@ -70,7 +70,7 @@ export class ReturnsService {
    */
   async findAll(userId: string, role: string) {
     if (role === 'admin') {
-      const data = await this.db.client.select().from(returns);
+      const data = await this.db.db.select().from(returns);
       return { data };
     }
 
@@ -78,7 +78,7 @@ export class ReturnsService {
     const { products: productsTable, stores } =
       await import('../database/schema');
 
-    const rows = await this.db.client
+    const rows = await this.db.db
       .selectDistinct({ ret: returns })
       .from(returns)
       .innerJoin(orders, eq(orders.id, returns.orderId))
@@ -96,7 +96,7 @@ export class ReturnsService {
   }
 
   async findOne(id: string, userId: string, role: string) {
-    const [returnRecord] = await this.db.client
+    const [returnRecord] = await this.db.db
       .select()
       .from(returns)
       .where(eq(returns.id, id));
@@ -110,7 +110,7 @@ export class ReturnsService {
     // Check if seller owns any product in this order
     const { products: productsTable, stores } =
       await import('../database/schema');
-    const [sellerRow] = await this.db.client
+    const [sellerRow] = await this.db.db
       .select({ storeId: stores.id })
       .from(orderItems)
       .innerJoin(productsTable, eq(productsTable.id, orderItems.productId))
@@ -128,7 +128,7 @@ export class ReturnsService {
   }
 
   async approve(id: string, userId: string, role: string) {
-    const [returnRecord] = await this.db.client
+    const [returnRecord] = await this.db.db
       .select()
       .from(returns)
       .where(eq(returns.id, id));
@@ -138,7 +138,7 @@ export class ReturnsService {
     if (role !== 'admin') {
       const { products: productsTable, stores } =
         await import('../database/schema');
-      const [sellerRow] = await this.db.client
+      const [sellerRow] = await this.db.db
         .select({ storeId: stores.id })
         .from(orderItems)
         .innerJoin(productsTable, eq(productsTable.id, orderItems.productId))
@@ -153,7 +153,7 @@ export class ReturnsService {
       if (!sellerRow) throw new ForbiddenException('Not your return to approve');
     }
 
-    const [updated] = await this.db.client
+    const [updated] = await this.db.db
       .update(returns)
       .set({ status: 'approved', updatedAt: new Date() })
       .where(eq(returns.id, id))
@@ -162,7 +162,7 @@ export class ReturnsService {
   }
 
   async reject(id: string, reason: string, userId: string, role: string) {
-    const [returnRecord] = await this.db.client
+    const [returnRecord] = await this.db.db
       .select()
       .from(returns)
       .where(eq(returns.id, id));
@@ -171,7 +171,7 @@ export class ReturnsService {
     if (role !== 'admin') {
       const { products: productsTable, stores } =
         await import('../database/schema');
-      const [sellerRow] = await this.db.client
+      const [sellerRow] = await this.db.db
         .select({ storeId: stores.id })
         .from(orderItems)
         .innerJoin(productsTable, eq(productsTable.id, orderItems.productId))
@@ -186,7 +186,7 @@ export class ReturnsService {
       if (!sellerRow) throw new ForbiddenException('Not your return to reject');
     }
 
-    const [updated] = await this.db.client
+    const [updated] = await this.db.db
       .update(returns)
       .set({ status: 'rejected', updatedAt: new Date() })
       .where(eq(returns.id, id))
@@ -199,7 +199,7 @@ export class ReturnsService {
    * guardado en la tabla payments para esta order.
    */
   async refund(id: string, _adminId: string) {
-    const [returnRecord] = await this.db.client
+    const [returnRecord] = await this.db.db
       .select()
       .from(returns)
       .where(eq(returns.id, id));
@@ -209,7 +209,7 @@ export class ReturnsService {
     }
 
     // Buscar el PaymentIntent en la tabla payments (externalId = Stripe PI id)
-    const [payment] = await this.db.client
+    const [payment] = await this.db.db
       .select()
       .from(payments)
       .where(
@@ -229,7 +229,7 @@ export class ReturnsService {
       payment_intent: payment.externalId,
     });
 
-    const [updated] = await this.db.client
+    const [updated] = await this.db.db
       .update(returns)
       .set({ status: 'refunded', updatedAt: new Date() })
       .where(eq(returns.id, id))

@@ -3,7 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { DrizzleService } from '../database/drizzle.service';
+import { DrizzleService } from '../database/database.module';
 import { shippingZones, shippingMethods, shipments } from '../database/schema';
 import { eq, sql } from 'drizzle-orm';
 import { CreateShippingZoneDto } from './dto/create-shipping-zone.dto';
@@ -16,16 +16,16 @@ import { orders } from '../database/schema';
 
 @Injectable()
 export class ShippingService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DrizzleService) {}
 
   // ── Zones ────────────────────────────────────────────────────────────
   async findAllZones() {
-    const data = await this.db.client.select().from(shippingZones);
+    const data = await this.db.db.select().from(shippingZones);
     return { data };
   }
 
   async createZone(dto: CreateShippingZoneDto) {
-    const [zone] = await this.db.client
+    const [zone] = await this.db.db
       .insert(shippingZones)
       .values(dto)
       .returning();
@@ -33,7 +33,7 @@ export class ShippingService {
   }
 
   async updateZone(id: string, dto: UpdateShippingZoneDto) {
-    const [zone] = await this.db.client
+    const [zone] = await this.db.db
       .update(shippingZones)
       .set({ ...dto, updatedAt: new Date() })
       .where(eq(shippingZones.id, id))
@@ -47,26 +47,35 @@ export class ShippingService {
   // Usamos ILIKE para búsqueda parcial tolerante a formatos.
   async findMethods(country?: string) {
     const data = country
-      ? await this.db.client
+      ? await this.db.db
           .select()
           .from(shippingMethods)
-          .where(sql`${shippingMethods.countries} ILIKE ${'%' + country + '%'}`)
-      : await this.db.client.select().from(shippingMethods);
+          .leftJoin(shippingZones, eq(shippingMethods.zoneId, shippingZones.id))
+          .where(sql`${shippingZones.countries} @> ${JSON.stringify([country])}`)
+      : await this.db.db.select().from(shippingMethods);
     return { data };
   }
 
   async createMethod(dto: CreateShippingMethodDto) {
-    const [method] = await this.db.client
+    const [method] = await this.db.db
       .insert(shippingMethods)
-      .values(dto)
+      .values({
+        ...dto,
+        price: dto.price.toString(),
+      })
       .returning();
     return { data: method };
   }
 
   async updateMethod(id: string, dto: UpdateShippingMethodDto) {
-    const [method] = await this.db.client
+    const updateData: any = { ...dto, updatedAt: new Date() };
+    if (dto.price !== undefined) {
+      updateData.price = dto.price.toString();
+    }
+    
+    const [method] = await this.db.db
       .update(shippingMethods)
-      .set({ ...dto, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(shippingMethods.id, id))
       .returning();
     if (!method) throw new NotFoundException(`Shipping method ${id} not found`);
@@ -77,8 +86,8 @@ export class ShippingService {
   async findShipments(userId: string, role: string) {
     const data =
       role === 'admin'
-        ? await this.db.client.select().from(shipments)
-        : await this.db.client
+        ? await this.db.db.select().from(shipments)
+        : await this.db.db
             .select()
             .from(shipments)
             .where(eq(shipments.sellerId, userId));
@@ -87,13 +96,13 @@ export class ShippingService {
 
   async createShipment(dto: CreateShipmentDto, sellerId: string) {
     // Validate order exists
-    const [order] = await this.db.client
+    const [order] = await this.db.db
       .select()
       .from(orders)
       .where(eq(orders.id, dto.orderId));
     if (!order) throw new NotFoundException(`Order ${dto.orderId} not found`);
 
-    const [shipment] = await this.db.client
+    const [shipment] = await this.db.db
       .insert(shipments)
       .values({ ...dto, sellerId })
       .returning();
@@ -106,7 +115,7 @@ export class ShippingService {
     userId: string,
     role: string,
   ) {
-    const [existing] = await this.db.client
+    const [existing] = await this.db.db
       .select()
       .from(shipments)
       .where(eq(shipments.id, id));
@@ -114,16 +123,22 @@ export class ShippingService {
     if (role !== 'admin' && existing.sellerId !== userId) {
       throw new ForbiddenException('Not your shipment');
     }
-    const [updated] = await this.db.client
+    
+    const updateData: any = { ...dto, updatedAt: new Date() };
+    if (dto.status && !['pending', 'in_transit', 'delivered', 'returned'].includes(dto.status)) {
+      delete updateData.status;
+    }
+    
+    const [updated] = await this.db.db
       .update(shipments)
-      .set({ ...dto, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(shipments.id, id))
       .returning();
     return { data: updated };
   }
 
   async trackShipment(trackingNumber: string) {
-    const [shipment] = await this.db.client
+    const [shipment] = await this.db.db
       .select()
       .from(shipments)
       .where(eq(shipments.trackingNumber, trackingNumber));

@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { DrizzleService } from '../database/drizzle.service';
+import { DrizzleService } from '../database/database.module';
 import { disputes, orders } from '../database/schema';
 import { eq, and } from 'drizzle-orm';
 import { CreateDisputeDto } from './dto/create-dispute.dto';
@@ -15,7 +15,7 @@ export class DisputesService {
   constructor(private readonly db: DrizzleService) {}
 
   async create(dto: CreateDisputeDto, buyerId: string) {
-    const [order] = await this.db.client
+    const [order] = await this.db.db
       .select()
       .from(orders)
       .where(and(eq(orders.id, dto.orderId), eq(orders.userId, buyerId)));
@@ -23,7 +23,7 @@ export class DisputesService {
     if (!order)
       throw new NotFoundException('Order not found or does not belong to you');
 
-    const [dispute] = await this.db.client
+    const [dispute] = await this.db.db
       .insert(disputes)
       .values({
         orderId: dto.orderId,
@@ -43,7 +43,7 @@ export class DisputesService {
   }
 
   async findMy(userId: string) {
-    const data = await this.db.client
+    const data = await this.db.db
       .select()
       .from(disputes)
       .where(eq(disputes.buyerId, userId));
@@ -51,12 +51,12 @@ export class DisputesService {
   }
 
   async findAll() {
-    const data = await this.db.client.select().from(disputes);
+    const data = await this.db.db.select().from(disputes);
     return { data };
   }
 
   async findOne(id: string, userId: string, role: string) {
-    const [dispute] = await this.db.client
+    const [dispute] = await this.db.db
       .select()
       .from(disputes)
       .where(eq(disputes.id, id));
@@ -70,7 +70,7 @@ export class DisputesService {
   }
 
   async resolve(id: string, dto: ResolveDisputeDto) {
-    const [dispute] = await this.db.client
+    const [dispute] = await this.db.db
       .select()
       .from(disputes)
       .where(eq(disputes.id, id));
@@ -78,7 +78,7 @@ export class DisputesService {
     if (dispute.status !== 'open' && dispute.status !== 'under_review') {
       throw new BadRequestException('Dispute is already resolved or closed');
     }
-    const [updated] = await this.db.client
+    const [updated] = await this.db.db
       .update(disputes)
       .set({
         status: dto.status as 'under_review' | 'resolved' | 'closed',

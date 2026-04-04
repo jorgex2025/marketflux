@@ -43,7 +43,10 @@ export default defineConfig({
       testMatch: '**/mobile/**',
     },
   ],
-  webServer: process.env.CI
+  // No web server cuando API_URL está definido
+  webServer: process.env.API_URL
+    ? undefined
+    : process.env.CI
     ? undefined
     : {
         command: 'pnpm --filter @marketflux/web dev',

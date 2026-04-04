@@ -7,6 +7,7 @@ const mockDb = {
   select: vi.fn().mockReturnThis(),
   from: vi.fn().mockReturnThis(),
   where: vi.fn().mockReturnThis(),
+  orderBy: vi.fn().mockReturnThis(),
   limit: vi.fn().mockReturnThis(),
   insert: vi.fn().mockReturnThis(),
   values: vi.fn().mockReturnThis(),
@@ -29,9 +30,7 @@ describe('CategoriesService', () => {
       { id: '1', name: 'Electronica', parentId: null, children: [] },
       { id: '2', name: 'Celulares', parentId: '1', children: [] },
     ];
-    mockDb.select.mockReturnValueOnce({
-      from: () => Promise.resolve(rows),
-    });
+    mockDb.orderBy.mockResolvedValueOnce(rows);
     const tree = await service.findTree();
     expect(Array.isArray(tree)).toBe(true);
   });
