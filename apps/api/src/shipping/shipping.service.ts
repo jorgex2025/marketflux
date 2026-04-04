@@ -3,7 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { DatabaseService } from '../database/database.service';
+import { DrizzleService } from '../database/drizzle.service';
 import { shippingZones, shippingMethods, shipments } from '../database/schema';
 import { eq, sql } from 'drizzle-orm';
 import { CreateShippingZoneDto } from './dto/create-shipping-zone.dto';

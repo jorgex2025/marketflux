@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { DatabaseService } from '../database/database.service';
+import { DrizzleService } from '../database/drizzle.service';
 import {
   returns,
   orders,
@@ -15,13 +15,13 @@ import { eq, and } from 'drizzle-orm';
 import Stripe from 'stripe';
 import { CreateReturnDto } from './dto/create-return.dto';
 
-const STRIPE_API_VERSION = '2025-01-27.acacia' as const;
+const STRIPE_API_VERSION = '2025-02-24.acacia';
 
 @Injectable()
 export class ReturnsService {
   private stripe: Stripe;
 
-  constructor(private readonly db: DatabaseService) {
+  constructor(private readonly db: DrizzleService) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
       apiVersion: STRIPE_API_VERSION,
     });

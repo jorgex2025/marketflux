@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { HeartIcon } from '@heroicons/react/24/solid';
 import { TrashIcon } from '@heroicons/react/24/outline';
-import { useWishlistStore } from '@/src/store/wishlist.store';
-import { useCart } from '@/src/hooks/use-cart';
+import { useWishlistStore } from '@/store/wishlist.store';
+import { useCart } from '@/hooks/use-cart';
 import { useCartStore } from '@/src/store/cart.store';
 import { useToast } from '@/components/providers/toast-provider';
 

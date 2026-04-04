@@ -41,13 +41,12 @@ export class NotificationProcessor extends WorkerHost {
     this.logger.log(`[${job.id}] Dispatching notification "${resolvedType}" to user ${userId}`);
 
     try {
-      await this.notificationsService.create({
+      await this.notificationsService.notify({
         userId,
         type: resolvedType,
         title: title ?? resolvedType ?? 'Notificación',
         body: body ?? JSON.stringify(payload ?? {}),
         meta: meta ?? payload ?? {},
-        read: false,
       });
       this.logger.log(`[${job.id}] Notification stored for user ${userId}`);
     } catch (err) {

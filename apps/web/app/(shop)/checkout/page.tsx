@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCartStore, selectCartTotal } from '@/src/store/cart.store';
+import { useCartStore, selectCartTotal } from '@/store/cart.store';
 import { useToast } from '@/components/providers/toast-provider';
 import { useAuth } from '@/hooks/use-auth';
 

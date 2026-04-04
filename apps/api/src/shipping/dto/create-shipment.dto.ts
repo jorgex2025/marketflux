@@ -2,15 +2,15 @@ import { IsString, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 
 export class CreateShipmentDto {
   @IsUUID()
-  orderId: string;
+  orderId: string = '';
 
   @IsString()
   @IsNotEmpty()
-  trackingNumber: string;
+  trackingNumber: string = '';
 
   @IsString()
   @IsNotEmpty()
-  carrier: string;
+  carrier: string = '';
 
   @IsString()
   @IsOptional()

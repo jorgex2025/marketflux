@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { DatabaseService } from '../database/database.service';
+import { DrizzleService } from '../database/drizzle.service';
 import { disputes, orders } from '../database/schema';
 import { eq, and } from 'drizzle-orm';
 import { CreateDisputeDto } from './dto/create-dispute.dto';
@@ -12,7 +12,7 @@ import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 
 @Injectable()
 export class DisputesService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DrizzleService) {}
 
   async create(dto: CreateDisputeDto, buyerId: string) {
     const [order] = await this.db.client

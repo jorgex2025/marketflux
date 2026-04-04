@@ -3,7 +3,7 @@ import { IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
 export class CreateCheckoutSessionDto {
   @IsNotEmpty()
   @IsString()
-  orderId: string;
+  orderId: string = '';
 
   @IsOptional()
   @IsUrl()

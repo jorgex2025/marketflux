@@ -6,14 +6,14 @@ import { Type, Transform } from 'class-transformer';
 
 export class CreateProductDto {
   @IsString() @IsNotEmpty()
-  name: string;
+  name: string = '';
 
   @IsOptional() @IsString()
   description?: string;
 
   @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive()
   @Type(() => Number)
-  price: number;
+  price: number = 0;
 
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive()
   @Type(() => Number)
@@ -21,7 +21,7 @@ export class CreateProductDto {
 
   @IsNumber() @Min(0)
   @Type(() => Number)
-  stock: number;
+  stock: number = 0;
 
   @IsOptional() @IsString()
   sku?: string;
@@ -33,12 +33,12 @@ export class CreateProductDto {
   images?: string[];
 
   @IsOptional() @IsBoolean()
-  featured?: boolean;
+  featured?: boolean = false;
 
   @IsOptional()
   @IsEnum(['draft', 'active', 'archived'])
   status?: 'draft' | 'active' | 'archived';
 
   @IsOptional()
-  attributes?: Record<string, unknown>;
+  attributes?: Record<string, unknown> = {};
 }

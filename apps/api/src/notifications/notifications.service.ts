@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { DrizzleService } from '../database/database.module';
+import { DrizzleService } from '../database/drizzle.service';
 import { notifications } from '../database/schema';
 import { eq, and, isNull, desc } from 'drizzle-orm';
 import type { NotifyDto } from './dto/create-notification.dto';

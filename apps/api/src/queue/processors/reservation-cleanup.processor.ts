@@ -1,8 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger, Inject } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { DATABASE_CONNECTION } from '../../database/database.module';
+import { DrizzleService } from '../../database/drizzle.service';
 import * as schema from '../../database/schema';
 import { eq, and, lt } from 'drizzle-orm';
 
@@ -12,10 +11,7 @@ export const RESERVATION_CLEANUP_QUEUE = 'reservation-cleanup';
 export class ReservationCleanupProcessor extends WorkerHost {
   private readonly logger = new Logger(ReservationCleanupProcessor.name);
 
-  constructor(
-    @Inject(DATABASE_CONNECTION)
-    private readonly db: NodePgDatabase<typeof schema>,
-  ) {
+  constructor(private readonly db: DrizzleService) {
     super();
   }
 

@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { ShoppingCartIcon } from '@heroicons/react/24/outline';
-import { useCart } from '@/src/hooks/use-cart';
-import { useCartStore } from '@/src/store/cart.store';
+import { useCart } from '@/hooks/use-cart';
+import { useCartStore } from '@/store/cart.store';
 import { useToast } from '@/components/providers/toast-provider';
 
 interface AddToCartButtonProps {

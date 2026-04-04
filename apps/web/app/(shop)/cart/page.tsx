@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { TrashIcon } from '@heroicons/react/24/outline';
-import { useCart } from '@/src/hooks/use-cart';
-import { useCartStore, selectCartTotal } from '@/src/store/cart.store';
+import { useCart } from '@/hooks/use-cart';
+import { useCartStore, selectCartTotal } from '@/store/cart.store';
 import { useToast } from '@/components/providers/toast-provider';
 import { useEffect } from 'react';
 

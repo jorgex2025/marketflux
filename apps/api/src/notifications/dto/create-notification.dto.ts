@@ -17,19 +17,19 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export class NotifyDto {
   @IsString()
   @IsNotEmpty()
-  userId: string;
+  userId: string = '';
 
   @IsEnum(NOTIFICATION_TYPES)
-  type: NotificationType;
+  type: NotificationType = NOTIFICATION_TYPES[0];
 
   @IsString()
   @IsNotEmpty()
-  title: string;
+  title: string = '';
 
   @IsString()
   @IsOptional()
   body?: string;
 
   @IsOptional()
-  data?: Record<string, unknown>;
+  data?: Record<string, unknown> = {};
 }

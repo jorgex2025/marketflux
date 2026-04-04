@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DisputesService } from './disputes.service';
-import { DatabaseService } from '../database/database.service';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { DrizzleService } from '../database/drizzle.service';
 
 const mockDb = {
   client: {
@@ -23,9 +22,10 @@ describe('DisputesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DisputesService,
-        { provide: DatabaseService, useValue: mockDb },
+        { provide: DrizzleService, useValue: mockDb },
       ],
     }).compile();
+
     service = module.get<DisputesService>(DisputesService);
     jest.clearAllMocks();
   });

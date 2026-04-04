@@ -2,7 +2,7 @@
 
 import { HeartIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
-import { useWishlistStore } from '@/src/store/wishlist.store';
+import { useWishlistStore } from '@/store/wishlist.store';
 import { useToast } from '@/components/providers/toast-provider';
 
 interface WishlistItem {
