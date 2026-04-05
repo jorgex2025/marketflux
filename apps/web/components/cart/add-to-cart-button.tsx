@@ -25,15 +25,15 @@ export function AddToCartButton({ productId, name, price, imageUrl, stock, class
   const handleAdd = async () => {
     if (stock <= 0) return;
     setLoading(true);
-    try {
-      await addItem({ productId, quantity: qty });
-      toast(`¡${name} agregado al carrito!`, 'success');
-      setOpen(true);
-    } catch (err: any) {
-      toast(err?.message ?? 'Error al agregar al carrito', 'error');
-    } finally {
-      setLoading(false);
-    }
+     try {
+       await addItem(productId, qty);
+       toast(`¡${name} agregado al carrito!`, 'success');
+       setOpen(true);
+     } catch (err: any) {
+       toast(err?.message ?? 'Error al agregar al carrito', 'error');
+     } finally {
+       setLoading(false);
+     }
   };
 
   return (

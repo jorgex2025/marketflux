@@ -48,10 +48,12 @@ export default function ProfilePage() {
             className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Rol</label>
-          <span className="inline-block text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full capitalize">{user?.role}</span>
-        </div>
+         <div>
+           <label className="block text-sm font-medium mb-1">Rol</label>
+           <span className="inline-block text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full capitalize">
+             {((user as { role?: string })?.role ?? 'buyer')}
+           </span>
+         </div>
         <button
           type="submit"
           disabled={loading}

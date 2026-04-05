@@ -11,5 +11,13 @@ export class CreateOrderDto {
 
   @IsOptional()
   @IsString()
+  shippingAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
   couponCode?: string;
 }

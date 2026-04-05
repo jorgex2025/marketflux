@@ -17,13 +17,14 @@ export interface AuthenticatedRequest extends Request {
 
 @Injectable()
 export class AuthService {
-  public readonly auth: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly authInstance: any;
 
   constructor(
     private readonly drizzleService: DrizzleService,
     private readonly configService: ConfigService,
   ) {
-    this.auth = betterAuth({
+    this.authInstance = betterAuth({
       secret: this.configService.getOrThrow<string>('BETTER_AUTH_SECRET'),
       baseURL: this.configService.getOrThrow<string>('BETTER_AUTH_URL'),
       database: drizzleAdapter(this.drizzleService.db, {
@@ -49,8 +50,8 @@ export class AuthService {
         },
       },
       session: {
-        expiresIn: 60 * 60 * 24 * 7, // 7 days
-        updateAge: 60 * 60 * 24,     // refresh if older than 1 day
+        expiresIn: 60 * 60 * 24 * 7,
+        updateAge: 60 * 60 * 24,
         cookieCache: {
           enabled: true,
           maxAge: 5 * 60,
@@ -63,6 +64,6 @@ export class AuthService {
   }
 
   getAuth() {
-    return this.auth;
+    return this.authInstance;
   }
 }

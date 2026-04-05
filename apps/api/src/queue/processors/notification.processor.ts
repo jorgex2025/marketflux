@@ -6,15 +6,15 @@ import { NotificationsService } from '../../notifications/notifications.service'
 export const NOTIFICATION_QUEUE = 'notification';
 
 export type NotificationEvent =
-  | 'order_placed'
+  | 'order_paid'
   | 'order_shipped'
   | 'order_delivered'
-  | 'order_cancelled'
-  | 'payout_sent'
-  | 'dispute_opened'
   | 'review_received'
-  | 'chat_message'
-  | 'low_stock'; // ✅ añadido para inventory-alert.processor
+  | 'message_received'
+  | 'dispute_opened'
+  | 'return_requested'
+  | 'payout_processed'
+  | 'low_stock';
 
 export interface NotificationJobData {
   userId: string;
@@ -41,12 +41,11 @@ export class NotificationProcessor extends WorkerHost {
     this.logger.log(`[${job.id}] Dispatching notification "${resolvedType}" to user ${userId}`);
 
     try {
-      await this.notificationsService.notify({
+await this.notificationsService.notify({
         userId,
-        type: resolvedType,
+        type: resolvedType as any,
         title: title ?? resolvedType ?? 'Notificación',
         body: body ?? JSON.stringify(payload ?? {}),
-        meta: meta ?? payload ?? {},
       });
       this.logger.log(`[${job.id}] Notification stored for user ${userId}`);
     } catch (err) {

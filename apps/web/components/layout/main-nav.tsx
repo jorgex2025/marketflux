@@ -67,22 +67,22 @@ export function MainNav() {
           >
             Tienda
           </Link>
-          {isAuthenticated && user?.role === 'seller' && (
-            <Link
-              href="/vendor/dashboard"
-              className={`nav-link transition-colors duration-200 ${pathname.startsWith('/vendor') ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Mi tienda
-            </Link>
-          )}
-          {isAuthenticated && user?.role === 'admin' && (
-            <Link
-              href="/admin/dashboard"
-              className={`nav-link transition-colors duration-200 ${pathname.startsWith('/admin') ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Admin
-            </Link>
-          )}
+           {isAuthenticated && ((user as { role?: string })?.role ?? 'buyer') === 'seller' && (
+             <Link
+               href="/vendor/dashboard"
+               className={`nav-link transition-colors duration-200 ${pathname.startsWith('/vendor') ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'}`}
+             >
+               Mi tienda
+             </Link>
+           )}
+           {isAuthenticated && ((user as { role?: string })?.role ?? 'buyer') === 'admin' && (
+             <Link
+               href="/admin/dashboard"
+               className={`nav-link transition-colors duration-200 ${pathname.startsWith('/admin') ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'}`}
+             >
+               Admin
+             </Link>
+           )}
         </nav>
 
         <div className="flex items-center gap-3">

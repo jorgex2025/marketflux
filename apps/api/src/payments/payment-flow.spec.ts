@@ -27,7 +27,7 @@ vi.mock('stripe', () => {
 describe('Payment Flow Integration', () => {
   it('should create payment intent with Stripe', async () => {
     const stripe = new Stripe('sk_test_fake', {
-      apiVersion: '2024-12-18.acacia',
+      apiVersion: '2025-02-24.acacia',
     });
 
     const result = await stripe.paymentIntents.create({
@@ -42,7 +42,7 @@ describe('Payment Flow Integration', () => {
 
   it('should confirm payment intent', async () => {
     const stripe = new Stripe('sk_test_fake', {
-      apiVersion: '2024-12-18.acacia',
+      apiVersion: '2025-02-24.acacia',
     });
 
     const result = await stripe.paymentIntents.confirm('pi_test123');

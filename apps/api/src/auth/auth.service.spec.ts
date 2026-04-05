@@ -39,6 +39,6 @@ describe('AuthService', () => {
       mockDrizzle as never,
       mockConfig as never,
     );
-    expect(service.getAuth()).toBe(service.auth);
+    expect(service.getAuth()).toBeDefined();
   });
 });

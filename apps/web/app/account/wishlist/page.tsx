@@ -14,15 +14,15 @@ export default function WishlistPage() {
   const setOpen = useCartStore((s) => s.setOpen);
   const { toast } = useToast();
 
-  const handleAddToCart = async (item: typeof items[0]) => {
-    try {
-      await addItem({ productId: item.id, quantity: 1 });
-      toast(`¡${item.name} agregado al carrito!`, 'success');
-      setOpen(true);
-    } catch {
-      toast('Error al agregar al carrito', 'error');
-    }
-  };
+   const handleAddToCart = async (item: typeof items[0]) => {
+     try {
+       await addItem(item.id, 1);
+       toast(`¡${item.name} agregado al carrito!`, 'success');
+       setOpen(true);
+     } catch {
+       toast('Error al agregar al carrito', 'error');
+     }
+   };
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">

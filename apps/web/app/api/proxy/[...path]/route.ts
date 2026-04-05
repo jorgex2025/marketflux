@@ -2,8 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-async function handler(req: NextRequest, { params }: { params: { path: string[] } }) {
-  const path = params.path.join('/');
+async function handler(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  const { path } = await params;
   const url = new URL(`${API_URL}/api/${path}`);
   req.nextUrl.searchParams.forEach((v, k) => url.searchParams.set(k, v));
 

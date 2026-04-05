@@ -18,7 +18,7 @@ export async function seed() {
   const existingUsers = await db.select().from(schema.users);
   console.log('Found existing users:', existingUsers.length);
 
-  let userId: { [key: string]: string } = {};
+  let userId: { admin: string; seller1: string; seller2: string; buyer1: string; buyer2: string; buyer3: string } = {} as any;
 
   if (existingUsers.length === 0) {
     // Insert users if none exist
@@ -70,28 +70,30 @@ export async function seed() {
   const existingStores = await db.select().from(schema.stores);
   console.log('Found existing stores:', existingStores.length);
 
-  let storeId: { [key: string]: string } = {};
+  let storeId: { s1: string; s2: string } = {} as any;
 
-  if (existingStores.length === 0) {
-    storeId = { s1: createId(), s2: createId() };
+   if (existingStores.length === 0) {
+     storeId = { s1: createId(), s2: createId() };
 
-     await db.insert(schema.stores).values([
-       {
-         userId:      userId.seller1,
-         name:        'TechZone Store',
-         slug:        'techzone-store',
-         description: 'Los mejores gadgets y electrónica',
-         status:      'active',
-       },
-       {
-         userId:      userId.seller2,
-         name:        'Fashion Hub',
-         slug:        'fashion-hub',
-         description: 'Moda contemporánea y accesorios',
-         status:      'active',
-       },
-     ]);
-    console.log('Stores inserted');
+      await db.insert(schema.stores).values([
+        {
+          id:          storeId.s1,
+          userId:      userId.seller1,
+          name:        'TechZone Store',
+          slug:        'techzone-store',
+          description: 'Los mejores gadgets y electrónica',
+          status:      'active',
+        },
+        {
+          id:          storeId.s2,
+          userId:      userId.seller2,
+          name:        'Fashion Hub',
+          slug:        'fashion-hub',
+          description: 'Moda contemporánea y accesorios',
+          status:      'active',
+        },
+      ]);
+     console.log('Stores inserted');
   } else {
     const techStore = existingStores.find(s => s.slug === 'techzone-store');
     const fashionStore = existingStores.find(s => s.slug === 'fashion-hub');
@@ -109,21 +111,26 @@ export async function seed() {
   const existingCategories = await db.select().from(schema.categories);
   console.log('Found existing categories:', existingCategories.length);
 
-  let catId: { [key: string]: string } = {};
+  let catId: { electronica: string; celulares: string; ropa: string } = {} as any;
 
-  if (existingCategories.length === 0) {
-    catId = {
-      electronica: createId(),
-      celulares:   createId(),
-      ropa:        createId(),
-    };
+   if (existingCategories.length === 0) {
+     catId = {
+       electronica: createId(),
+       celulares:   createId(),
+       ropa:        createId(),
+     };
 
+     // Insert root categories first (no parent dependency)
      await db.insert(schema.categories).values([
-       { name: 'Electrónica', slug: 'electronica', parentId: null,              position: 1 },
-       { name: 'Celulares',   slug: 'celulares',   parentId: catId.electronica, position: 1 },
-       { name: 'Ropa',        slug: 'ropa',        parentId: null,              position: 2 },
+       { id: catId.electronica, name: 'Electrónica', slug: 'electronica', parentId: null, order: 1 },
+       { id: catId.ropa, name: 'Ropa', slug: 'ropa', parentId: null, order: 2 },
      ]);
-    console.log('Categories inserted');
+
+     // Then insert child categories (parent now exists)
+     await db.insert(schema.categories).values([
+       { id: catId.celulares, name: 'Celulares', slug: 'celulares', parentId: catId.electronica, order: 1 },
+     ]);
+     console.log('Categories inserted');
   } else {
     const electronica = existingCategories.find(c => c.slug === 'electronica');
     const celulares = existingCategories.find(c => c.slug === 'celulares');
@@ -146,7 +153,7 @@ export async function seed() {
   const existingProducts = await db.select().from(schema.products);
   console.log('Found existing products:', existingProducts.length);
 
-  let prodId: { [key: string]: string } = {};
+  let prodId: { p1: string; p2: string; p3: string; p4: string; p5: string } = {} as any;
 
   if (existingProducts.length === 0) {
     prodId = {
@@ -155,11 +162,11 @@ export async function seed() {
     };
 
      await db.insert(schema.products).values([
-       { storeId: storeId.s1, categoryId: catId.celulares,   name: 'Smartphone Pro X',   slug: 'smartphone-pro-x',   price: '599.99', stock: 50,  status: 'active', featured: true  },
-       { storeId: storeId.s1, categoryId: catId.celulares,   name: 'Tablet Ultra 10',    slug: 'tablet-ultra-10',    price: '399.99', stock: 30,  status: 'active', featured: false },
-       { storeId: storeId.s1, categoryId: catId.electronica, name: 'Auriculares BT Pro',  slug: 'auriculares-bt-pro', price: '89.99',  stock: 100, status: 'active', featured: true  },
-       { storeId: storeId.s2, categoryId: catId.ropa,        name: 'Camiseta Premium',   slug: 'camiseta-premium',   price: '29.99',  stock: 200, status: 'active', featured: false },
-       { storeId: storeId.s2, categoryId: catId.ropa,        name: 'Jeans Clásicos',    slug: 'jeans-clasicos',     price: '49.99',  stock: 150, status: 'active', featured: false },
+       { id: prodId.p1, storeId: storeId.s1, categoryId: catId.celulares,   name: 'Smartphone Pro X',   slug: 'smartphone-pro-x',   description: 'Smartphone de última generación', price: '599.99', stock: 50,  status: 'active', featured: true, images: []  },
+       { id: prodId.p2, storeId: storeId.s1, categoryId: catId.celulares,   name: 'Tablet Ultra 10',    slug: 'tablet-ultra-10',    description: 'Tablet de alto rendimiento', price: '399.99', stock: 30,  status: 'active', featured: false, images: [] },
+       { id: prodId.p3, storeId: storeId.s1, categoryId: catId.electronica, name: 'Auriculares BT Pro',  slug: 'auriculares-bt-pro', description: 'Auriculares Bluetooth premium', price: '89.99',  stock: 100, status: 'active', featured: true, images: []  },
+       { id: prodId.p4, storeId: storeId.s2, categoryId: catId.ropa,        name: 'Camiseta Premium',   slug: 'camiseta-premium',   description: 'Camiseta de algodón premium', price: '29.99',  stock: 200, status: 'active', featured: false, images: [] },
+       { id: prodId.p5, storeId: storeId.s2, categoryId: catId.ropa,        name: 'Jeans Clásicos',    slug: 'jeans-clasicos',     description: 'Jeans de corte clásico', price: '49.99',  stock: 150, status: 'active', featured: false, images: [] },
      ]);
     console.log('Products inserted');
   } else {
@@ -187,46 +194,57 @@ export async function seed() {
   console.log('Inserting orders...');
   await db.insert(schema.orders).values([
     {
-      id:       orderId.o1,
-      userId:   userId.buyer1,
-      status:   'paid',
-      subtotal: '599.99',
-      total:    '599.99',
-      discount: '0',
-      shippingCost: '0',
+      id:             orderId.o1,
+      userId:         userId.buyer1,
+      status:         'paid',
+      subtotal:       '599.99',
+      totalAmount:    '599.99',
+      discount:       '0',
+      shippingCost:   '0',
+      taxAmount:      '0',
+      shippingAddress: '123 Main St, City',
+      paymentMethod:  'stripe',
     },
     {
-      id:       orderId.o2,
-      userId:   userId.buyer2,
-      status:   'delivered',
-      subtotal: '89.99',
-      total:    '89.99',
-      discount: '0',
-      shippingCost: '0',
+      id:             orderId.o2,
+      userId:         userId.buyer2,
+      status:         'delivered',
+      subtotal:       '89.99',
+      totalAmount:    '89.99',
+      discount:       '0',
+      shippingCost:   '0',
+      taxAmount:      '0',
+      shippingAddress: '456 Oak Ave, Town',
+      paymentMethod:  'stripe',
     },
   ]).onConflictDoNothing();
-  console.log('Orders inserted:', orderId);
 
+  // Insert order items
   await db.insert(schema.orderItems).values([
     {
-      id:             createId(),
       orderId:        orderId.o1,
       productId:      prodId.p1,
+      storeId:        storeId.s1,
+      name:           'Smartphone Pro X',
       quantity:       1,
-      unitPrice:      '599.99',
-      total:          '599.99',
+      price:          '599.99',
       commissionRate: '0.1000',
+      commissionAmount: '59.99',
+      subtotal:       '599.99',
     },
     {
-      id:             createId(),
       orderId:        orderId.o2,
       productId:      prodId.p3,
+      storeId:        storeId.s1,
+      name:           'Auriculares BT Pro',
       quantity:       1,
-      unitPrice:      '89.99',
-      total:          '89.99',
+      price:          '89.99',
       commissionRate: '0.1000',
+      commissionAmount: '8.99',
+      subtotal:       '89.99',
     },
   ]).onConflictDoNothing();
+  console.log('Order items inserted');
 
   // ── 6. Review aprobada (orden delivered) ────────────────────────────────
   // NOTA: reviews.schema.ts NO tiene campo orderId (se quitó el FK para evitar

@@ -71,9 +71,9 @@ export class OrdersService {
       }
     }
 
-    const total = subtotal - discountAmount;
+    const totalAmount = subtotal - discountAmount;
 
-    // Create order — campo correcto: discount (no discountAmount)
+    // Create order
     const [order] = await this.db
       .insert(schema.orders)
       .values({
@@ -81,27 +81,38 @@ export class OrdersService {
         status: 'pending',
         subtotal: subtotal.toFixed(2),
         discount: discountAmount.toFixed(2),
-        total: total.toFixed(2),
-        couponCode: cart.couponCode ?? null,
+        totalAmount: totalAmount.toFixed(2),
+        couponId: cart.couponId ?? null,
         shippingMethodId: dto.shippingMethodId ?? null,
-        shippingAddressId: dto.shippingAddressId ?? null,
+        shippingAddress: dto.shippingAddress ?? '',
+        paymentMethod: dto.paymentMethod ?? 'pending',
       })
       .returning();
 
-    // Create order items — campo correcto: quantity (no quantity)
+    if (!order) {
+      throw new Error('Failed to create order');
+    }
+
+    // Create order items
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     for (const item of cart.items) {
-      const itemTotal = (Number(item.unitPrice) * item.quantity).toFixed(2);
+      const itemSubtotal = (Number(item.price) * item.quantity).toFixed(2);
+      const commissionAmount = (Number(itemSubtotal) * Number(globalRate)).toFixed(2);
       const [orderItem] = await this.db
         .insert(schema.orderItems)
         .values({
           orderId: order.id,
           productId: item.productId,
           variantId: item.variantId ?? null,
+          storeId: item.storeId,
+          name: item.name,
+          sku: item.sku ?? null,
+          attributes: item.attributes ?? null,
           quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          total: itemTotal,
+          price: item.price,
           commissionRate: globalRate,
+          commissionAmount,
+          subtotal: itemSubtotal,
         })
         .returning();
 
@@ -134,10 +145,11 @@ export class OrdersService {
       offset,
       orderBy: (o, { desc }) => [desc(o.createdAt)],
     });
-    const [{ count }] = await this.db
+    const [countResult] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.orders)
       .where(eq(schema.orders.userId, userId));
+    const count = countResult?.count ?? 0;
     return {
       data: orders,
       meta: { page, limit, total: Number(count), totalPages: Math.ceil(Number(count) / limit) },

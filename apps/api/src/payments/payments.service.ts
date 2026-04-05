@@ -48,7 +48,7 @@ export class PaymentsService {
     if (!order) throw new NotFoundException('Orden no encontrada');
     if (order.userId !== userId) throw new BadRequestException('No autorizado');
 
-    const orderItems = order.items ?? [];
+    const orderItems = (order as any).items ?? [];
     if (order.status !== 'pending') {
       throw new BadRequestException('La orden no está en estado pendiente');
     }
@@ -56,13 +56,13 @@ export class PaymentsService {
     const webUrl = this.config.get<string>('WEB_URL') ?? 'http://localhost:3000';
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
-      orderItems.map((item) => ({
+      orderItems.map((item: any) => ({
         quantity: item.quantity,
         price_data: {
           currency: 'usd',
-          unit_amount: Math.round(Number(item.unitPrice) * 100),
+          unit_amount: Math.round(Number(item.price) * 100),
           product_data: {
-            name: item.product?.name ?? `Producto ${item.productId}`,
+            name: item.name ?? `Producto ${item.productId}`,
           },
         },
       }));
@@ -168,7 +168,7 @@ export class PaymentsService {
       provider: 'stripe',
       externalId: paymentIntentId,
       status: 'paid',
-      amount: order.total,
+      amount: order.totalAmount,
       currency: 'usd',
     });
 

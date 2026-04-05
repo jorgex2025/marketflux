@@ -39,9 +39,9 @@ export class AnalyticsService {
 
     const [result] = await this.db
       .select({
-        totalRevenue: sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.unitPrice})`),
+        totalRevenue: sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.price})`),
         totalOrders: count(schema.orders.id),
-        avgOrderValue: avg(schema.orderItems.total),
+        avgOrderValue: avg(schema.orderItems.subtotal),
       })
       .from(schema.orderItems)
       .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
@@ -74,7 +74,7 @@ export class AnalyticsService {
         productName: schema.products.name,
         totalSold: sum(schema.orderItems.quantity),
         totalRevenue: sum(
-          sql<number>`${schema.orderItems.quantity} * ${schema.orderItems.unitPrice}`,
+          sql<number>`${schema.orderItems.quantity} * ${schema.orderItems.price}`,
         ),
       })
       .from(schema.orderItems)
@@ -85,7 +85,7 @@ export class AnalyticsService {
       )
       .where(and(...conditions))
       .groupBy(schema.orderItems.productId, schema.products.name)
-      .orderBy(desc(sum(sql<number>`${schema.orderItems.quantity} * ${schema.orderItems.unitPrice}`)))
+      .orderBy(desc(sum(sql<number>`${schema.orderItems.quantity} * ${schema.orderItems.price}`)))
       .limit(limit);
     return rows.map((r) => ({
       productId: r.productId,
@@ -106,7 +106,7 @@ export class AnalyticsService {
     const rows = await this.db
       .select({
         day: sql<string>`DATE(${schema.orders.createdAt})`,
-        revenue: sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.unitPrice})`),
+        revenue: sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.price})`),
         orders: count(schema.orderItems.orderId),
       })
       .from(schema.orderItems)
@@ -136,7 +136,7 @@ export class AnalyticsService {
 
     const [orderStats] = await this.db
       .select({
-        gmv: sum(schema.orders.total),
+        gmv: sum(schema.orders.totalAmount),
         totalOrders: count(schema.orders.id),
       })
       .from(schema.orders)
@@ -177,7 +177,7 @@ export class AnalyticsService {
       .select({
         storeId: schema.products.storeId,
         storeName: schema.stores.name,
-        gmv: sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.unitPrice})`),
+        gmv: sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.price})`),
         orderCount: count(schema.orderItems.orderId),
       })
       .from(schema.orderItems)
@@ -186,7 +186,7 @@ export class AnalyticsService {
       .innerJoin(schema.stores, eq(schema.products.storeId, schema.stores.id))
       .where(conditions.length ? and(...conditions) : undefined)
       .groupBy(schema.products.storeId, schema.stores.name)
-      .orderBy(desc(sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.unitPrice})`)))
+      .orderBy(desc(sum(sql<number>`(${schema.orderItems.quantity} * ${schema.orderItems.price})`)))
       .limit(limit);
 
     return rows.map((r) => ({
@@ -210,7 +210,7 @@ export class AnalyticsService {
     const rows = await this.db
       .select({
         day: sql<string>`DATE(${schema.orders.createdAt})`,
-        gmv: sum(schema.orders.total),
+        gmv: sum(schema.orders.totalAmount),
         orders: count(schema.orders.id),
       })
       .from(schema.orders)

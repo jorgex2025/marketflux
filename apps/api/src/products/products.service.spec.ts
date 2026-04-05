@@ -74,8 +74,8 @@ describe('ProductsService', () => {
     vi.clearAllMocks();
     db = makeDb();
     service = new ProductsService(
-      db as unknown as Parameters<typeof ProductsService.prototype.constructor>[0],
-      mockSearch as unknown as Parameters<typeof ProductsService.prototype.constructor>[1],
+      db as any,
+      mockSearch as any,
     );
   });
 

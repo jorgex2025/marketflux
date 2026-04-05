@@ -9,7 +9,7 @@ import {
 export class CreateShippingMethodDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsString()
   @IsOptional()
@@ -17,7 +17,7 @@ export class CreateShippingMethodDto {
 
   @IsNumber()
   @IsPositive()
-  price: number;
+  price!: number;
 
   @IsNumber()
   @IsOptional()

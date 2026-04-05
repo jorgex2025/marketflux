@@ -3,15 +3,29 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module';
+import { AuthGuard } from './common/guards/auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { MaintenanceGuard } from './common/guards/maintenance.guard';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
-  // rawBody: true es requerido por Stripe para verificar la firma del webhook
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
-  // WebSocket adapter — requerido para @WebSocketGateway (socket.io)
   app.useWebSocketAdapter(new IoAdapter(app));
 
   app.setGlobalPrefix('api');
+
+  app.useGlobalFilters(new HttpExceptionFilter());
+
+  app.useGlobalGuards(
+    app.get(AuthGuard),
+    app.get(RolesGuard),
+    app.get(MaintenanceGuard),
+  );
+
+  app.useGlobalInterceptors(app.get(AuditInterceptor));
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -19,6 +33,7 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
   app.enableCors({
     origin: process.env['FRONTEND_URL'] ?? 'http://localhost:3000',
     credentials: true,

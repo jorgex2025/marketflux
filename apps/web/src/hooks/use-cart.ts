@@ -81,7 +81,8 @@ export function useCart() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.message ?? 'Cupón inválido');
       }
-      store.setCoupon(code);
+      const appliedCoupon = await res.json();
+      store.setCoupon(appliedCoupon);
     },
     [store],
   );

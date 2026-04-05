@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import apiClient from '@/lib/api-client';
+import { apiClient } from '@/lib/api-client';
 
 type ReturnRecord = {
   id: string;
@@ -14,10 +14,10 @@ type ReturnRecord = {
 export default function AdminReturnsPage() {
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-returns'],
-    queryFn: () => apiClient.get<{ data: ReturnRecord[] }>('/returns').then((r) => r.data.data),
-  });
+   const { data, isLoading } = useQuery({
+     queryKey: ['admin-returns'],
+     queryFn: () => apiClient.get<ReturnRecord[]>('/returns'),
+   });
 
   const refund = useMutation({
     mutationFn: (id: string) => apiClient.post(`/returns/${id}/refund`, {}),
@@ -31,7 +31,7 @@ export default function AdminReturnsPage() {
       <h1 className="text-2xl font-bold mb-6">Returns (Admin)</h1>
       {!data?.length && <p className="text-gray-500">No returns.</p>}
       <ul className="space-y-4">
-        {data?.map((r) => (
+         {data?.map((r: ReturnRecord) => (
           <li key={r.id} className="border rounded p-4">
             <p className="font-medium">Return #{r.id.slice(0, 8)}</p>
             <p className="text-sm">Order: {r.orderId}</p>

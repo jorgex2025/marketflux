@@ -1,17 +1,17 @@
-import { Injectable, Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { eq, and, sql } from 'drizzle-orm';
 import * as schema from '../database/schema/index';
-import { DATABASE_TOKEN } from '../database/database.module';
+import { DrizzleService } from '../database/database.module';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { CreateAlertDto } from './dto/create-alert.dto';
 
 @Injectable()
 export class InventoryService {
-  constructor(
-    @Inject(DATABASE_TOKEN)
-    private readonly db: NodePgDatabase<typeof schema>,
-  ) {}
+  private readonly db;
+
+  constructor(private readonly drizzleService: DrizzleService) {
+    this.db = this.drizzleService.db;
+  }
 
   async getStock(productId: string, sellerId: string) {
     const product = await this.db.query.products.findFirst({

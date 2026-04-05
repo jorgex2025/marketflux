@@ -21,8 +21,8 @@ export interface ProductDocument {
 @Injectable()
 export class SearchService implements OnModuleInit {
   private readonly logger = new Logger(SearchService.name);
-  private client: MeiliSearch;
-  private index: Index<ProductDocument>;
+  private client!: MeiliSearch;
+  private index!: Index<ProductDocument>;
   private readonly INDEX_NAME = 'products';
 
   constructor(private readonly config: ConfigService) {}

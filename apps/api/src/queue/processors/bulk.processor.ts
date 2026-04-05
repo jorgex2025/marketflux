@@ -66,7 +66,7 @@ export class BulkProcessor extends WorkerHost {
         } else if (action === 'delete' && item.id) {
           await this.db
             .update(schema.products)
-            .set({ status: 'archived' }) // ✅ 'archived' es el valor correcto del enum product_status
+            .set({ status: 'archived' })
             .where(eq(schema.products.id, item.id));
         }
         processed++;

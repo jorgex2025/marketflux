@@ -29,7 +29,10 @@ export class DrizzleService {
 @Global()
 @Module({
   imports: [ConfigModule],
-  providers: [DrizzleService],
-  exports: [DrizzleService],
+  providers: [
+    DrizzleService,
+    { provide: DATABASE_TOKEN, useExisting: DrizzleService },
+  ],
+  exports: [DrizzleService, DATABASE_TOKEN],
 })
 export class DatabaseModule {}

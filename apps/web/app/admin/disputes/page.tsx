@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import apiClient from '@/lib/api-client';
+import { apiClient } from '@/lib/api-client';
 
 type Dispute = {
   id: string;
@@ -16,11 +16,11 @@ type Dispute = {
 export default function AdminDisputesPage() {
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-disputes'],
-    queryFn: () =>
-      apiClient.get<{ data: Dispute[] }>('/disputes').then((r) => r.data.data),
-  });
+    const { data, isLoading } = useQuery({
+      queryKey: ['admin-disputes'],
+      queryFn: () =>
+        apiClient.get<Dispute[]>('/disputes'),
+    });
 
   const resolve = useMutation({
     mutationFn: ({
@@ -42,7 +42,7 @@ export default function AdminDisputesPage() {
       <h1 className="text-2xl font-bold mb-6">Disputes (Admin)</h1>
       {!data?.length && <p className="text-gray-500">No disputes.</p>}
       <ul className="space-y-4">
-        {data?.map((d) => (
+         {data?.map((d: Dispute) => (
           <li key={d.id} className="border rounded p-4">
             <p className="font-medium">Dispute #{d.id.slice(0, 8)}</p>
             <p className="text-sm">Order: {d.orderId}</p>

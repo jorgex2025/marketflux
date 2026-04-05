@@ -188,7 +188,7 @@ export class ReviewsService {
     const isApproved = dto.status === 'approved';
     await this.notificationsService.notify({
       userId: review.userId,
-      type: 'review_moderated',
+      type: 'review_received',
       title: isApproved ? 'Tu reseña fue aprobada' : 'Tu reseña fue rechazada',
       body: isApproved
         ? 'Tu reseña ya es visible en el producto.'

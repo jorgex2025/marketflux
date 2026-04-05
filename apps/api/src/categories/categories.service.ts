@@ -4,9 +4,9 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { createId } from '@paralleldrive/cuid2';
 import { categories } from '../database/schema';
+import { DrizzleService } from '../database/database.module';
 import type { CreateCategoryDto } from './dto/create-category.dto';
 import type { UpdateCategoryDto } from './dto/update-category.dto';
 
@@ -26,15 +26,19 @@ type CategoryRow = {
 @Injectable()
 export class CategoriesService {
   constructor(
-    private readonly db: NodePgDatabase<Record<string, never>>,
+    private readonly drizzleService: DrizzleService,
   ) {}
+
+  private get db() {
+    return this.drizzleService.db;
+  }
 
   // ── GET /api/categories (público — árbol anidado) ──
   async findTree(): Promise<CategoryRow[]> {
     const rows: CategoryRow[] = await (this.db as any)
       .select()
       .from(categories)
-      .orderBy(categories.position, categories.name);
+      .orderBy(categories.order, categories.name);
 
     return this.buildTree(rows);
   }
