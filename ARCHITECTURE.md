@@ -180,22 +180,49 @@ marketflux/
 - **Rationale**: Zero egress fees, S3-compatible API, CDN integration
 - **Benefit**: Cost-effective media storage for product images
 
-### Socket.IO for Real-time Communication
-- **Decision**: WebSocket via Socket.IO for chat and notifications
-- **Rationale**: NestJS native WebSocket gateway support, automatic reconnection, rooms
-- **Benefit**: Real-time buyer-seller communication and live order updates
+### Sharp for Image Optimization
+- **Decision**: Process images before upload (resize 2000x2000, WebP quality 85)
+- **Rationale**: Reduce bandwidth, faster page loads, consistent quality
+- **Benefit**: Thumbnails auto-generated (400x400) for product listings
 
-### Deploy Separado por App
-- **Decision**: API en Fly.io, Web en Vercel
-- **Rationale**: Fly.io ofrece containers persistentes (necesario para WebSockets y BullMQ). Vercel optimiza Next.js automáticamente.
-- **Benefit**: Cada plataforma optimizada para su caso de uso específico
+### Zod for Runtime Validation
+- **Decision**: Validate environment variables at startup
+- **Rationale**: Fail fast on missing config, type-safe env access
+- **Benefit**: Catches deployment misconfigurations before they cause runtime errors
 
-### Socket.IO for Real-time Communication
-- **Decision**: WebSocket via Socket.IO for chat and notifications
-- **Rationale**: NestJS native WebSocket gateway support, automatic reconnection, rooms
-- **Benefit**: Real-time buyer-seller communication and live order updates
+## Trade-offs Conocidos
 
-### Deploy Separado por App
-- **Decision**: API en Fly.io, Web en Vercel
-- **Rationale**: Fly.io ofrece containers persistentes (necesario para WebSockets y BullMQ). Vercel optimiza Next.js automáticamente.
-- **Benefit**: Cada plataforma optimizada para su caso de uso específico
+| Trade-off | Decisión | Impacto |
+|-----------|----------|---------|
+| R2 no tiene CDN global built-in | Usar Cloudflare CDN con R2 | Latencia ligeramente mayor en regiones lejanas |
+| Fly.io single region | Deploy en `mia` (Miami) | Latencia ~50ms para LATAM, ~150ms para Europa |
+| No multi-tenant DB | Schema compartido con `storeId` | Escala bien hasta ~1000 tiendas, luego sharding |
+| Socket.IO en Fly.io | Sticky sessions requerido | Single machine = sin problema. Multi-machine = Redis adapter |
+| Serverless Web + Stateful API | Separación clara | Web escala a 0, API necesita máquina mínima |
+
+## Patterns
+
+### Transacciones
+```typescript
+// Usar transacciones Drizzle para operaciones atómicas
+await db.transaction(async (tx) => {
+  await tx.insert(orders).values(orderData);
+  await tx.insert(orderItems).values(itemsData);
+  await tx.update(inventory).set({ stock: sql`${inventory.stock} - ${qty}` });
+});
+```
+
+### Error Handling
+- HTTP errors con `@nestjs/common` exceptions
+- Global exception filter para formato consistente
+- Audit interceptor para log de todas las mutaciones
+
+### Logging
+- NestJS Logger para output estructurado
+- Sentry para error tracking en producción
+- Audit logs en DB para acciones de usuario
+
+### Rate Limiting
+- ThrottlerModule de NestJS
+- Endpoints sensibles: checkout (10/min), bulk-import (5/min)
+- Redis-backed para distribución multi-instance

@@ -1,346 +1,340 @@
-# API Documentation
+# MarketFlux API Documentation
 
-Base URL: `/api`
-
-All endpoints return JSON responses. Authentication is handled via Better Auth sessions.
-
-## Response Format
-
-### Success Response
-```json
-{
-  "success": true,
-  "data": { ... },
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 150
-  }
-}
-```
-
-### Error Response
-```json
-{
-  "success": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid input data",
-    "details": [
-      { "field": "email", "message": "Invalid email format" }
-    ]
-  }
-}
-```
+Base URL: `http://localhost:3001/api`
 
 ## Authentication
 
-All endpoints requiring authentication expect a valid session cookie set by Better Auth.
+All endpoints prefixed with `/api` require authentication unless marked as **Public**.
 
-| Header | Description |
-|--------|-------------|
-| `Cookie` | Session cookie (`better-auth.session_token`) |
-| `Content-Type` | `application/json` |
+### Public Endpoints
 
-### Role-Based Access
+- `GET /api/health` - Health check
+- `GET /api/products` - List products (paginated, filterable)
+- `GET /api/products/:slug` - Get product by slug
+- `POST /api/auth/*` - All auth routes (sign-in, sign-up, session, etc.)
+- `GET /api/stores` - List active stores
+- `GET /api/stores/:slug` - Get store by slug
+- `GET /api/categories` - Category tree
+- `GET /api/categories/:slug` - Get category by slug
+- `GET /api/reviews/product/:productId` - List reviews for a product
+- `GET /api/banners` - List active banners
+- `GET /api/shipping/methods` - List shipping methods
+- `GET /api/shipping/track/:trackingNumber` - Track a shipment
+- `GET /api/reputation/:sellerId` - Get seller reputation
+- `GET /api/commissions/effective/:storeId` - Get effective commission rate
+- `POST /api/payments/webhook` - Stripe webhook handler
+- `POST /api/coupons/validate` - Validate a coupon code
+- `GET /api/coupons/flash-sales/active` - List active flash sales
+- `GET /api/search/products` - Search products
+- `GET /health` - Health check (no prefix)
+- `GET /metrics` - Prometheus metrics
 
-| Role | Description |
-|------|-------------|
-| `customer` | Can browse, purchase, review |
-| `seller` | Can manage products, orders, inventory |
-| `admin` | Full access to all resources |
+### Authenticated Endpoints
+
+- `GET /api/orders` - List user orders (requires auth)
+- `GET /api/orders/:id` - Get order details (requires auth)
+- `POST /api/orders` - Create order (requires auth)
+- `PATCH /api/orders/:id/cancel` - Cancel order (requires auth)
+- `GET /api/orders/:id/items/:itemId/review-eligible` - Check review eligibility (requires auth)
+- `GET /api/cart` - Get user cart (requires auth)
+- `POST /api/cart/items` - Add item to cart (requires auth)
+- `PATCH /api/cart/items/:id` - Update cart item (requires auth)
+- `DELETE /api/cart/items/:id` - Remove cart item (requires auth)
+- `POST /api/cart/coupon` - Apply coupon to cart (requires auth)
+- `DELETE /api/cart/coupon` - Remove coupon from cart (requires auth)
+- `GET /api/wishlist` - List wishlist items (requires auth)
+- `POST /api/wishlist/items/:productId` - Add to wishlist (requires auth)
+- `DELETE /api/wishlist/items/:productId` - Remove from wishlist (requires auth)
+- `GET /api/notifications` - List user notifications (requires auth)
+- `GET /api/notifications/unread` - List unread notifications (requires auth)
+- `PATCH /api/notifications/:id/read` - Mark notification as read (requires auth)
+- `PATCH /api/notifications/read-all` - Mark all notifications as read (requires auth)
+- `GET /api/chat/conversations` - List user conversations (requires auth)
+- `POST /api/chat/conversations` - Create conversation (requires auth)
+- `GET /api/chat/conversations/:id/messages` - Get conversation messages (requires auth)
+- `POST /api/payments/checkout-session` - Create Stripe checkout session (requires auth)
+- `GET /api/returns/my` - List my returns (requires auth)
+- `GET /api/disputes/my` - List my disputes (requires auth)
 
 ---
 
-## Endpoints
-
-### Health
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/health` | Service health check | No |
-| `GET` | `/api/health/db` | Database connectivity | No |
-| `GET` | `/api/health/redis` | Redis connectivity | No |
+## Endpoints by Module
 
 ### Auth
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `POST` | `/api/auth/register` | Register new user | No |
-| `POST` | `/api/auth/login` | Login with email/password | No |
-| `POST` | `/api/auth/logout` | Logout current session | Yes |
-| `GET` | `/api/auth/session` | Get current session | Yes |
-| `POST` | `/api/auth/forgot-password` | Request password reset | No |
-| `POST` | `/api/auth/reset-password` | Reset password with token | No |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/health` | Health check | **Public** | - |
+| `ALL` | `/api/auth/*` | All auth operations (sign-in, sign-up, session, etc.) via Better Auth | **Public** | - |
 
 ### Products
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/products` | List products (paginated) | No |
-| `GET` | `/api/products/:id` | Get product by ID | No |
-| `POST` | `/api/products` | Create product | Yes (seller) |
-| `PATCH` | `/api/products/:id` | Update product | Yes (seller, owner) |
-| `DELETE` | `/api/products/:id` | Delete product | Yes (seller, owner) |
-| `POST` | `/api/products/:id/images` | Upload product images | Yes (seller, owner) |
-
-**Query Parameters** (GET `/api/products`):
-- `page` (number): Page number, default 1
-- `limit` (number): Items per page, default 20, max 100
-- `category` (string): Filter by category slug
-- `seller` (string): Filter by seller ID
-- `sort` (string): Sort field (`price`, `createdAt`, `rating`)
-- `order` (string): Sort direction (`asc`, `desc`)
-- `q` (string): Search query (uses Meilisearch)
-
-### Categories
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/categories` | List all categories | No |
-| `GET` | `/api/categories/:id` | Get category with tree | No |
-| `POST` | `/api/categories` | Create category | Yes (admin) |
-| `PATCH` | `/api/categories/:id` | Update category | Yes (admin) |
-| `DELETE` | `/api/categories/:id` | Delete category | Yes (admin) |
-
-### Cart
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/cart` | Get current cart | Yes |
-| `POST` | `/api/cart/items` | Add item to cart | Yes |
-| `PATCH` | `/api/cart/items/:id` | Update cart item quantity | Yes |
-| `DELETE` | `/api/cart/items/:id` | Remove item from cart | Yes |
-| `DELETE` | `/api/cart` | Clear cart | Yes |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/products` | List products (paginated, filterable) | **Public** | - |
+| `GET` | `/api/products/:slug` | Get product by slug | **Public** | - |
+| `POST` | `/api/products` | Create product | Required | seller, admin |
+| `PATCH` | `/api/products/:id` | Update product | Required | seller, admin |
+| `DELETE` | `/api/products/:id` | Delete product | Required | seller, admin |
+| `POST` | `/api/products/bulk-import` | Bulk import products (rate limited: 5/min) | Required | seller, admin |
+| `GET` | `/api/products/bulk-import/:jobId` | Get bulk import job status | Required | seller, admin |
 
 ### Orders
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/orders` | List user orders | Yes |
-| `GET` | `/api/orders/:id` | Get order details | Yes |
-| `POST` | `/api/orders` | Create order from cart | Yes |
-| `PATCH` | `/api/orders/:id/status` | Update order status | Yes (seller/admin) |
-| `POST` | `/api/orders/:id/cancel` | Cancel order | Yes (customer) |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `POST` | `/api/orders` | Create order | Required | - |
+| `GET` | `/api/orders` | List user orders (paginated) | Required | - |
+| `GET` | `/api/orders/:id` | Get order details | Required | - |
+| `PATCH` | `/api/orders/:id/cancel` | Cancel order | Required | - |
+| `GET` | `/api/orders/:id/items/:itemId/review-eligible` | Check if order item is eligible for review | Required | - |
 
-**Order Status Flow**: `pending` → `confirmed` → `processing` → `shipped` → `delivered`
+### Vendors/Stores
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/stores` | List active stores | **Public** | - |
+| `GET` | `/api/stores/:slug` | Get store by slug | **Public** | - |
+| `GET` | `/api/stores/admin/all` | List all stores (including inactive) | Required | admin |
+| `PATCH` | `/api/stores/:id/status` | Update store status | Required | admin |
+| `DELETE` | `/api/stores/:id` | Delete store | Required | admin |
+| `PATCH` | `/api/stores/:id` | Update own store | Required | - |
+| `PATCH` | `/api/stores/:id/onboarding` | Complete store onboarding | Required | - |
+
+### Cart
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/cart` | Get user cart | Required | - |
+| `POST` | `/api/cart/items` | Add item to cart | Required | - |
+| `PATCH` | `/api/cart/items/:id` | Update cart item quantity | Required | - |
+| `DELETE` | `/api/cart/items/:id` | Remove item from cart | Required | - |
+| `POST` | `/api/cart/coupon` | Apply coupon to cart | Required | - |
+| `DELETE` | `/api/cart/coupon` | Remove coupon from cart | Required | - |
 
 ### Payments
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `POST` | `/api/payments/create-intent` | Create Stripe payment intent | Yes |
-| `POST` | `/api/payments/webhook` | Stripe webhook handler | No (signature verified) |
-| `GET` | `/api/payments/:orderId` | Get payment status | Yes |
-| `POST` | `/api/payments/:id/refund` | Process refund | Yes (admin) |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `POST` | `/api/payments/checkout-session` | Create Stripe checkout session (rate limited: 10/min) | Required | - |
+| `POST` | `/api/payments/webhook` | Stripe webhook handler | **Public** | - |
 
-### Inventory
+### Categories
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/inventory` | List inventory items | Yes (seller) |
-| `GET` | `/api/inventory/:productId` | Get product inventory | Yes (seller) |
-| `PATCH` | `/api/inventory/:productId` | Update stock quantity | Yes (seller) |
-| `POST` | `/api/inventory/:productId/reserve` | Reserve stock for order | Yes |
-| `POST` | `/api/inventory/:productId/release` | Release reserved stock | Yes |
-
-### Shipping
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/shipping/rates` | Calculate shipping rates | Yes |
-| `POST` | `/api/shipping/:orderId/label` | Generate shipping label | Yes (seller) |
-| `GET` | `/api/shipping/:orderId/tracking` | Get tracking info | Yes |
-| `PATCH` | `/api/shipping/:orderId/tracking` | Update tracking number | Yes (seller) |
-
-### Vendors
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/vendors` | List vendors | No |
-| `GET` | `/api/vendors/:id` | Get vendor profile | No |
-| `GET` | `/api/vendors/:id/products` | Get vendor products | No |
-| `PATCH` | `/api/vendors/:id` | Update vendor profile | Yes (owner) |
-| `POST` | `/api/vendors/apply` | Apply to become seller | Yes |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/categories` | Get category tree | **Public** | - |
+| `GET` | `/api/categories/:slug` | Get category by slug | **Public** | - |
+| `POST` | `/api/categories` | Create category | Required | admin |
+| `PATCH` | `/api/categories/:id` | Update category | Required | admin |
+| `DELETE` | `/api/categories/:id` | Delete category | Required | admin |
 
 ### Reviews
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/reviews` | List reviews (paginated) | No |
-| `GET` | `/api/reviews/product/:productId` | Get product reviews | No |
-| `POST` | `/api/reviews` | Create review | Yes (verified buyer) |
-| `PATCH` | `/api/reviews/:id` | Update review | Yes (owner) |
-| `DELETE` | `/api/reviews/:id` | Delete review | Yes (owner/admin) |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/reviews/product/:productId` | List reviews for a product | **Public** | - |
+| `POST` | `/api/reviews` | Create review | Required | buyer, seller, admin |
+| `PATCH` | `/api/reviews/:id` | Update own review | Required | - |
+| `DELETE` | `/api/reviews/:id` | Delete review | Required | admin |
+| `POST` | `/api/reviews/:id/reply` | Reply to review | Required | seller, admin |
+| `POST` | `/api/reviews/:id/helpful` | Mark review as helpful | Required | - |
+| `GET` | `/api/reviews/pending` | List pending reviews for moderation | Required | admin |
+| `PATCH` | `/api/reviews/:id/moderate` | Moderate a review | Required | admin |
+
+### Shipping
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/shipping/zones` | List shipping zones | Required | admin |
+| `POST` | `/api/shipping/zones` | Create shipping zone | Required | admin |
+| `PATCH` | `/api/shipping/zones/:id` | Update shipping zone | Required | admin |
+| `GET` | `/api/shipping/methods` | List shipping methods | **Public** | - |
+| `POST` | `/api/shipping/methods` | Create shipping method | Required | admin |
+| `PATCH` | `/api/shipping/methods/:id` | Update shipping method | Required | admin |
+| `GET` | `/api/shipping/shipments` | List shipments | Required | seller, admin |
+| `POST` | `/api/shipping/shipments` | Create shipment | Required | seller, admin |
+| `PATCH` | `/api/shipping/shipments/:id` | Update shipment | Required | seller, admin |
+| `GET` | `/api/shipping/track/:trackingNumber` | Track shipment by tracking number | **Public** | - |
 
 ### Returns
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/returns` | List returns | Yes |
-| `POST` | `/api/returns` | Create return request | Yes |
-| `GET` | `/api/returns/:id` | Get return details | Yes |
-| `PATCH` | `/api/returns/:id/status` | Update return status | Yes (seller/admin) |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `POST` | `/api/returns` | Create return request | Required | buyer |
+| `GET` | `/api/returns/my` | List my returns | Required | - |
+| `GET` | `/api/returns` | List all returns | Required | seller, admin |
+| `GET` | `/api/returns/:id` | Get return details | Required | - |
+| `PATCH` | `/api/returns/:id/approve` | Approve return | Required | seller, admin |
+| `PATCH` | `/api/returns/:id/reject` | Reject return | Required | seller, admin |
+| `POST` | `/api/returns/:id/refund` | Process refund for return | Required | admin |
 
 ### Disputes
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/disputes` | List disputes | Yes (admin) |
-| `POST` | `/api/disputes` | Open dispute | Yes |
-| `GET` | `/api/disputes/:id` | Get dispute details | Yes |
-| `PATCH` | `/api/disputes/:id/resolve` | Resolve dispute | Yes (admin) |
-
-### Notifications
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/notifications` | List user notifications | Yes |
-| `PATCH` | `/api/notifications/:id/read` | Mark as read | Yes |
-| `PATCH` | `/api/notifications/read-all` | Mark all as read | Yes |
-| `DELETE` | `/api/notifications/:id` | Delete notification | Yes |
-
-### Search
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/search` | Search products (Meilisearch) | No |
-| `GET` | `/api/search/suggestions` | Get search suggestions | No |
-
-**Query Parameters** (GET `/api/search`):
-- `q` (string, required): Search query
-- `category` (string): Filter by category
-- `minPrice` (number): Minimum price filter
-- `maxPrice` (number): Maximum price filter
-- `seller` (string): Filter by seller
-- `sort` (string): `_geo`, `price`, `createdAt`, `_ranking`
-
-### Payouts
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/payouts` | List seller payouts | Yes (seller) |
-| `POST` | `/api/payouts/request` | Request payout | Yes (seller) |
-| `GET` | `/api/payouts/:id` | Get payout details | Yes |
-
-### Commissions
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/commissions` | List commissions | Yes (admin) |
-| `GET` | `/api/commissions/settings` | Get commission settings | Yes (admin) |
-| `PATCH` | `/api/commissions/settings` | Update commission settings | Yes (admin) |
-
-### Coupons
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/coupons` | List coupons | Yes (admin/seller) |
-| `POST` | `/api/coupons` | Create coupon | Yes (admin/seller) |
-| `PATCH` | `/api/coupons/:id` | Update coupon | Yes (admin/seller) |
-| `DELETE` | `/api/coupons/:id` | Delete coupon | Yes (admin/seller) |
-| `POST` | `/api/coupons/validate` | Validate coupon code | Yes |
-
-### Wishlists
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/wishlists` | Get user wishlist | Yes |
-| `POST` | `/api/wishlists/items` | Add item to wishlist | Yes |
-| `DELETE` | `/api/wishlists/items/:productId` | Remove item from wishlist | Yes |
-
-### Reports
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/reports/sales` | Sales report | Yes (seller/admin) |
-| `GET` | `/api/reports/revenue` | Revenue report | Yes (admin) |
-| `GET` | `/api/reports/products` | Product performance | Yes (seller/admin) |
-| `GET` | `/api/reports/customers` | Customer analytics | Yes (admin) |
-
-### Analytics
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/analytics/dashboard` | Dashboard metrics | Yes (admin) |
-| `GET` | `/api/analytics/sellers` | Seller performance | Yes (admin) |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `POST` | `/api/disputes` | Create dispute | Required | buyer |
+| `GET` | `/api/disputes/my` | List my disputes | Required | - |
+| `GET` | `/api/disputes` | List all disputes | Required | admin |
+| `GET` | `/api/disputes/:id` | Get dispute details | Required | - |
+| `PATCH` | `/api/disputes/:id` | Resolve dispute | Required | admin |
 
 ### Chat
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/chat/conversations` | List conversations | Yes |
-| `POST` | `/api/chat/conversations` | Start conversation | Yes |
-| `GET` | `/api/chat/conversations/:id/messages` | Get messages | Yes |
-| `POST` | `/api/chat/conversations/:id/messages` | Send message | Yes |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `POST` | `/api/chat/conversations` | Create or reuse conversation | Required | - |
+| `GET` | `/api/chat/conversations` | List user conversations | Required | - |
+| `GET` | `/api/chat/conversations/:id/messages` | Get conversation messages | Required | - |
 
-### Storage
+### Notifications
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `POST` | `/api/storage/upload` | Upload file to R2 | Yes |
-| `DELETE` | `/api/storage/:key` | Delete file | Yes |
-| `GET` | `/api/storage/:key/signed-url` | Get signed URL | Yes |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/notifications` | List user notifications (last 50) | Required | - |
+| `GET` | `/api/notifications/unread` | List unread notifications | Required | - |
+| `PATCH` | `/api/notifications/:id/read` | Mark notification as read | Required | - |
+| `PATCH` | `/api/notifications/read-all` | Mark all notifications as read | Required | - |
 
-### Audit
+### Coupons
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/audit/logs` | List audit logs | Yes (admin) |
-| `GET` | `/api/audit/logs/:id` | Get audit log entry | Yes (admin) |
-
-### Marketplace Config
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/marketplace-config` | Get marketplace settings | No |
-| `PATCH` | `/api/marketplace-config` | Update settings | Yes (admin) |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/coupons` | List coupons | Required | admin, seller |
+| `GET` | `/api/coupons/:id` | Get coupon by ID | Required | admin, seller |
+| `POST` | `/api/coupons` | Create coupon | Required | admin, seller |
+| `PATCH` | `/api/coupons/:id` | Update coupon | Required | admin, seller |
+| `DELETE` | `/api/coupons/:id` | Delete coupon | Required | admin, seller |
+| `POST` | `/api/coupons/validate` | Validate coupon code | **Public** | - |
+| `GET` | `/api/coupons/flash-sales/active` | List active flash sales | **Public** | - |
 
 ### Banners
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| `GET` | `/api/banners` | List active banners | No |
-| `POST` | `/api/banners` | Create banner | Yes (admin) |
-| `PATCH` | `/api/banners/:id` | Update banner | Yes (admin) |
-| `DELETE` | `/api/banners/:id` | Delete banner | Yes (admin) |
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/banners` | List active banners | **Public** | - |
+| `POST` | `/api/banners` | Create banner | Required | admin |
+| `PATCH` | `/api/banners/:id` | Update banner | Required | admin |
+| `DELETE` | `/api/banners/:id` | Delete banner | Required | admin |
+
+### Wishlists
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/wishlist` | List wishlist items | Required | - |
+| `POST` | `/api/wishlist/items/:productId` | Add item to wishlist | Required | - |
+| `DELETE` | `/api/wishlist/items/:productId` | Remove item from wishlist | Required | - |
+
+### Commissions
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/commissions` | List commissions | Required | admin |
+| `GET` | `/api/commissions/:id` | Get commission by ID | Required | admin |
+| `POST` | `/api/commissions` | Create commission | Required | admin |
+| `PATCH` | `/api/commissions/:id` | Update commission | Required | admin |
+| `DELETE` | `/api/commissions/:id` | Delete commission | Required | admin |
+| `GET` | `/api/commissions/effective/:storeId` | Get effective commission rate for a store | **Public** | - |
+
+### Payouts
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/payouts` | List payouts | Required | seller, admin |
+| `GET` | `/api/payouts/:id` | Get payout by ID | Required | seller, admin |
+| `GET` | `/api/payouts/pending-balance` | Calculate pending balance for store | Required | seller |
+| `POST` | `/api/payouts/process` | Process payout for store | Required | admin |
+| `GET` | `/api/payouts/admin/summary` | Get admin payout summary | Required | admin |
+
+### Reports
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/reports` | List reports | Required | admin |
+| `GET` | `/api/reports/:id` | Get report by ID | Required | admin |
+| `DELETE` | `/api/reports/:id` | Delete report | Required | admin |
+
+### Analytics
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/analytics/seller/:storeId/summary` | Seller summary | Required | seller, admin, superadmin |
+| `GET` | `/api/analytics/seller/:storeId/top-products` | Seller top products | Required | seller, admin, superadmin |
+| `GET` | `/api/analytics/seller/:storeId/revenue-by-day` | Seller revenue by day | Required | seller, admin, superadmin |
+| `GET` | `/api/analytics/admin/summary` | Admin platform summary | Required | admin, superadmin |
+| `GET` | `/api/analytics/admin/top-stores` | Admin top stores | Required | admin, superadmin |
+| `GET` | `/api/analytics/admin/gmv-by-day` | Admin GMV by day | Required | admin, superadmin |
+| `GET` | `/api/analytics/admin/order-status` | Admin order status breakdown | Required | admin, superadmin |
+
+### Storage
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `POST` | `/api/storage/upload` | Upload file | Required | - |
+| `DELETE` | `/api/storage/:key` | Delete file by key | Required | - |
+| `GET` | `/api/storage/files/:key` | Serve file by key | Required | - |
+
+### Config
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/config` | Get all config | Required | admin, superadmin |
+| `GET` | `/api/config/:key` | Get config value by key | Required | admin, superadmin |
+| `PATCH` | `/api/config/:key` | Update config value | Required | superadmin |
+| `PATCH` | `/api/config` | Bulk update config | Required | superadmin |
+
+### Audit
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/audit` | List audit logs (paginated, filterable) | Required | admin, superadmin |
+
+### Search
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/search/products` | Search products | **Public** | - |
+| `POST` | `/api/search/reindex` | Trigger search reindex | Required | - |
+
+### Inventory
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/inventory/:productId` | Get product stock | Required | seller, admin |
+| `PATCH` | `/api/inventory/:productId` | Update product stock | Required | seller, admin |
+| `PATCH` | `/api/inventory/:productId/variants/:vid` | Update variant stock | Required | seller, admin |
+| `GET` | `/api/inventory/alerts` | Get stock alerts | Required | seller, admin |
+| `POST` | `/api/inventory/alerts` | Create stock alert | Required | seller, admin |
+| `DELETE` | `/api/inventory/alerts/:id` | Delete stock alert | Required | seller, admin |
+
+### Reputation
+
+| Method | Path | Description | Auth | Roles |
+|--------|------|-------------|------|-------|
+| `GET` | `/api/reputation/:sellerId` | Get seller reputation | **Public** | - |
 
 ---
 
-## Rate Limiting
+## Error Codes
 
-Rate limiting is enforced per IP address using Redis:
+| Code | Description |
+|------|-------------|
+| 400 | Bad Request |
+| 401 | Unauthorized |
+| 403 | Forbidden |
+| 404 | Not Found |
+| 409 | Conflict |
+| 500 | Internal Server Error |
 
-| Endpoint Type | Limit | Window |
-|--------------|-------|--------|
-| Auth endpoints | 10 requests | 1 minute |
-| Search | 60 requests | 1 minute |
-| General API | 100 requests | 1 minute |
-| Upload | 20 requests | 1 minute |
+## Rate Limits
 
-Rate limit headers are included in all responses:
+- Public endpoints: 100 requests/minute
+- Authenticated endpoints: 300 requests/minute
+- Admin endpoints: 1000 requests/minute
 
-```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1704067200
-```
+### Specific Rate Limits
 
-When rate limited, the API returns `429 Too Many Requests`.
-
-## Pagination
-
-All list endpoints support cursor-based pagination:
-
-```json
-{
-  "data": [...],
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 150,
-    "hasNextPage": true,
-    "hasPrevPage": false
-  }
-}
-```
+| Endpoint | Limit |
+|----------|-------|
+| `POST /api/products/bulk-import` | 5 requests/minute |
+| `POST /api/payments/checkout-session` | 10 requests/minute |
