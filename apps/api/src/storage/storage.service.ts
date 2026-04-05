@@ -4,12 +4,23 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createId } from '@paralleldrive/cuid2';
-import { promises as fs } from 'fs';
-import { join } from 'path';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import sharp from 'sharp';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const UPLOAD_DIR = join(process.cwd(), 'uploads');
+
+const R2_CONFIG = {
+  accountId: process.env.R2_ACCOUNT_ID ?? '',
+  accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
+  secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
+  bucket: process.env.R2_BUCKET_NAME ?? 'marketplace-uploads',
+  publicUrl: process.env.R2_PUBLIC_URL ?? '',
+  region: 'auto',
+};
+
+const USE_R2 = !!(R2_CONFIG.accessKeyId && R2_CONFIG.bucket);
 
 type UploadResult = {
   url: string;
@@ -19,19 +30,19 @@ type UploadResult = {
 
 @Injectable()
 export class StorageService {
-  private uploadDir: string;
+  private s3Client: S3Client | null;
 
   constructor() {
-    this.uploadDir = UPLOAD_DIR;
-    this.ensureUploadDir();
-  }
-
-  private async ensureUploadDir() {
-    try {
-      await fs.mkdir(this.uploadDir, { recursive: true });
-    } catch {
-      // Directorio ya existe
-    }
+    this.s3Client = USE_R2
+      ? new S3Client({
+          region: R2_CONFIG.region,
+          endpoint: `https://${R2_CONFIG.accountId}.r2.cloudflarestorage.com`,
+          credentials: {
+            accessKeyId: R2_CONFIG.accessKeyId,
+            secretAccessKey: R2_CONFIG.secretAccessKey,
+          },
+        })
+      : null;
   }
 
   async upload(
@@ -42,43 +53,95 @@ export class StorageService {
       size: number;
     },
   ): Promise<UploadResult> {
-    // Validar tipo
     if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       throw new BadRequestException(
         `Tipo de archivo no permitido: ${file.mimetype}. Permitidos: ${ALLOWED_MIME_TYPES.join(', ')}`,
       );
     }
 
-    // Validar tamaño
     if (file.size > MAX_FILE_SIZE) {
       throw new BadRequestException(
         `Archivo demasiado grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Máximo: 5MB`,
       );
     }
 
-    const ext = this.getExtension(file.mimetype);
-    const key = `${createId()}.${ext}`;
-    const filePath = join(this.uploadDir, key);
+    // Optimizar imagen con Sharp
+    const optimizedBuffer = await sharp(file.buffer)
+      .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer();
 
-    // Guardar archivo
-    await fs.writeFile(filePath, file.buffer);
+    const key = `${createId()}.webp`;
+    const thumbKey = `thumbs/${createId()}.webp`;
 
-    // Thumbnail (mismo archivo hasta que sharp esté disponible)
-    const thumbKey = `thumb_${key}`;
-    const thumbPath = join(this.uploadDir, thumbKey);
-    await fs.writeFile(thumbPath, file.buffer);
+    // Generar thumbnail
+    const thumbBuffer = await sharp(file.buffer)
+      .resize(400, 400, { fit: 'cover' })
+      .webp({ quality: 80 })
+      .toBuffer();
 
-    const baseUrl = `/api/storage/files`;
+    if (USE_R2 && this.s3Client) {
+      // Upload a R2
+      await this.s3Client.send(
+        new PutObjectCommand({
+          Bucket: R2_CONFIG.bucket,
+          Key: key,
+          Body: optimizedBuffer,
+          ContentType: 'image/webp',
+          CacheControl: 'max-age=31536000',
+        }),
+      );
+
+      await this.s3Client.send(
+        new PutObjectCommand({
+          Bucket: R2_CONFIG.bucket,
+          Key: thumbKey,
+          Body: thumbBuffer,
+          ContentType: 'image/webp',
+          CacheControl: 'max-age=31536000',
+        }),
+      );
+
+      const baseUrl = R2_CONFIG.publicUrl || `https://pub-${R2_CONFIG.accountId}.r2.dev`;
+
+      return {
+        url: `${baseUrl}/${key}`,
+        thumbnailUrl: `${baseUrl}/${thumbKey}`,
+        key,
+      };
+    }
+
+    // Fallback: filesystem local (dev)
+    const { promises: fs } = await import('fs');
+    const { join } = await import('path');
+    const uploadDir = join(process.cwd(), 'uploads');
+    await fs.mkdir(uploadDir, { recursive: true });
+    await fs.mkdir(join(uploadDir, 'thumbs'), { recursive: true });
+
+    await fs.writeFile(join(uploadDir, key), optimizedBuffer);
+    await fs.writeFile(join(uploadDir, thumbKey), thumbBuffer);
 
     return {
-      url: `${baseUrl}/${key}`,
-      thumbnailUrl: `${baseUrl}/${thumbKey}`,
+      url: `/api/storage/files/${key}`,
+      thumbnailUrl: `/api/storage/files/${thumbKey}`,
       key,
     };
   }
 
   async delete(key: string): Promise<void> {
-    const filePath = join(this.uploadDir, key);
+    if (USE_R2 && this.s3Client) {
+      await this.s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: R2_CONFIG.bucket,
+          Key: key,
+        }),
+      );
+      return;
+    }
+
+    const { promises: fs } = await import('fs');
+    const { join } = await import('path');
+    const filePath = join(process.cwd(), 'uploads', key);
     try {
       await fs.unlink(filePath);
     } catch {
@@ -86,22 +149,30 @@ export class StorageService {
     }
   }
 
-  async getUrl(key: string): Promise<string> {
-    const filePath = join(this.uploadDir, key);
-    try {
-      await fs.access(filePath);
-      return `/api/storage/files/${key}`;
-    } catch {
-      throw new NotFoundException(`Archivo '${key}' no encontrado`);
+  async getSignedUploadUrl(key: string, contentType: string, expiresIn = 3600): Promise<string> {
+    if (!USE_R2 || !this.s3Client) {
+      throw new BadRequestException('R2 no configurado');
     }
+
+    const command = new PutObjectCommand({
+      Bucket: R2_CONFIG.bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    return getSignedUrl(this.s3Client, command, { expiresIn });
   }
 
-  private getExtension(mimetype: string): string {
-    const map: Record<string, string> = {
-      'image/jpeg': 'jpg',
-      'image/png': 'png',
-      'image/webp': 'webp',
-    };
-    return map[mimetype] ?? 'bin';
+  async getSignedDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+    if (!USE_R2 || !this.s3Client) {
+      throw new BadRequestException('R2 no configurado');
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: R2_CONFIG.bucket,
+      Key: key,
+    });
+
+    return getSignedUrl(this.s3Client, command, { expiresIn });
   }
 }
