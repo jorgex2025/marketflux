@@ -1,5 +1,6 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -7,6 +8,11 @@ const STATUS_STYLES: Record<string, string> = {
   processing: 'bg-blue-100 text-blue-700',
   paid: 'bg-green-100 text-green-700',
   failed: 'bg-red-100 text-red-700',
+};
+
+export const metadata: Metadata = {
+  title: 'Mis pagos — Vendedor | MarketFlux',
+  description: 'Consulta el historial de pagos y tu balance.',
 };
 
 export default function VendorPayoutsPage() {

@@ -1,5 +1,12 @@
 'use client';
+
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
+
+export const metadata: Metadata = {
+  title: 'Verificar correo — MarketFlux',
+  description: 'Confirma tu dirección de correo electrónico.',
+};
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '../../../lib/auth-client';

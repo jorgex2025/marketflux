@@ -1,9 +1,15 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/providers/toast-provider';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+export const metadata: Metadata = {
+  title: 'Reseñas — Admin | MarketFlux',
+  description: 'Modera las reseñas del marketplace.',
+};
 
 interface Review {
   id: string;

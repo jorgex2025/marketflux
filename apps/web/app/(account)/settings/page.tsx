@@ -1,6 +1,12 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useState } from 'react';
+
+export const metadata: Metadata = {
+  title: 'Configuración — MarketFlux',
+  description: 'Gestiona la configuración de tu cuenta.',
+};
 import { useToast } from '@/components/providers/toast-provider';
 
 export default function SettingsPage() {

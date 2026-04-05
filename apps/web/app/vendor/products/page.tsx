@@ -1,9 +1,15 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/components/providers/toast-provider';
+
+export const metadata: Metadata = {
+  title: 'Mis productos — Vendedor | MarketFlux',
+  description: 'Gestiona los productos de tu tienda.',
+};
 
 export default function VendorProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -12,6 +18,11 @@ export default function VendorProductsPage() {
   const [total, setTotal] = useState(0);
   const { toast } = useToast();
   const PER_PAGE = 15;
+
+export const metadata: Metadata = {
+  title: 'Mis productos — MarketFlux',
+  description: 'Gestiona los productos de tu tienda.',
+};
 
   const fetchProducts = () => {
     setLoading(true);

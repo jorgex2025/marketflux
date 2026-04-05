@@ -1,8 +1,14 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/components/providers/toast-provider';
+
+export const metadata: Metadata = {
+  title: 'Cupones — Vendedor | MarketFlux',
+  description: 'Gestiona los cupones de descuento de tu tienda.',
+};
 
 export default function VendorCouponsPage() {
   const [coupons, setCoupons] = useState<any[]>([]);

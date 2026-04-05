@@ -1,7 +1,13 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/providers/toast-provider';
+
+export const metadata: Metadata = {
+  title: 'Reseñas — Vendedor | MarketFlux',
+  description: 'Gestiona las reseñas de tus productos.',
+};
 
 export default function VendorReviewsPage() {
   const [reviews, setReviews] = useState<any[]>([]);

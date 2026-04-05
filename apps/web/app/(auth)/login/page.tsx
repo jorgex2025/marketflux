@@ -1,5 +1,12 @@
 'use client';
+
+import type { Metadata } from 'next';
 import { useState, type FormEvent } from 'react';
+
+export const metadata: Metadata = {
+  title: 'Iniciar sesión — MarketFlux',
+  description: 'Accede a tu cuenta en MarketFlux.',
+};
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from '../../../lib/auth-client';

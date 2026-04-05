@@ -1,5 +1,12 @@
 'use client';
+
+import type { Metadata } from 'next';
 import { useState, type FormEvent } from 'react';
+
+export const metadata: Metadata = {
+  title: 'Recuperar contraseña — MarketFlux',
+  description: 'Restablece tu contraseña de MarketFlux.',
+};
 import Link from 'next/link';
 import { authClient } from '../../../lib/auth-client';
 

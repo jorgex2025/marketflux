@@ -1,7 +1,13 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/providers/toast-provider';
+
+export const metadata: Metadata = {
+  title: 'Usuarios — Admin | MarketFlux',
+  description: 'Gestiona los usuarios y sus roles en la plataforma.',
+};
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 

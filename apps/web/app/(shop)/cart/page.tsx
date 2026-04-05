@@ -1,6 +1,17 @@
 'use client';
 
+import type { Metadata } from 'next';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: 'Carrito de compras — MarketFlux',
+  description: 'Revisa y gestiona los productos en tu carrito de compras.',
+};
+
+export const metadata: Metadata = {
+  title: 'Carrito de compras — MarketFlux',
+  description: 'Revisa y gestiona los productos en tu carrito de compras.',
+};
 import { TrashIcon } from '@heroicons/react/24/outline';
 import { useCart } from '@/hooks/use-cart';
 import { useCartStore, selectCartTotal } from '@/store/cart.store';

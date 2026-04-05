@@ -1,8 +1,14 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { PlusIcon, PencilIcon, TrashIcon, ChevronRightIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/components/providers/toast-provider';
+
+export const metadata: Metadata = {
+  title: 'Categorías — Admin | MarketFlux',
+  description: 'Gestiona el árbol de categorías del marketplace.',
+};
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 

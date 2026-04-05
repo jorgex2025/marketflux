@@ -1,9 +1,15 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/providers/toast-provider';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+export const metadata: Metadata = {
+  title: 'Disputas — Admin | MarketFlux',
+  description: 'Gestiona y resuelve las disputas del marketplace.',
+};
 
 interface Dispute {
   id: string;

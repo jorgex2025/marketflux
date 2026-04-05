@@ -1,10 +1,16 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { DocumentArrowDownIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/components/providers/toast-provider';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+export const metadata: Metadata = {
+  title: 'Reportes — Admin | MarketFlux',
+  description: 'Genera y descarga reportes del marketplace.',
+};
 
 interface Report {
   id: string;

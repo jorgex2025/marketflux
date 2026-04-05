@@ -1,5 +1,12 @@
 'use client';
+
+import type { Metadata } from 'next';
 import { useState, type FormEvent } from 'react';
+
+export const metadata: Metadata = {
+  title: 'Crear cuenta — MarketFlux',
+  description: 'Regístrate en MarketFlux y empieza a comprar.',
+};
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from '../../../lib/auth-client';

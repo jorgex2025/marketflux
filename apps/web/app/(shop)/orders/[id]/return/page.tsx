@@ -1,6 +1,17 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useState } from 'react';
+
+export const metadata: Metadata = {
+  title: 'Solicitar devolución — MarketFlux',
+  description: 'Solicita la devolución de un producto comprado.',
+};
+
+export const metadata: Metadata = {
+  title: 'Solicitar devolución — MarketFlux',
+  description: 'Solicita la devolución de un producto comprado.',
+};
 import { useRouter } from 'next/navigation';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';

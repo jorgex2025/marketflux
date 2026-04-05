@@ -1,8 +1,14 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/components/providers/toast-provider';
+
+export const metadata: Metadata = {
+  title: 'Mis direcciones — MarketFlux',
+  description: 'Administra tus direcciones de envío.',
+};
 
 interface Address { id: string; label: string; street: string; city: string; country: string; postalCode?: string; isDefault: boolean; }
 

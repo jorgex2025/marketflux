@@ -1,5 +1,6 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
@@ -7,6 +8,11 @@ import Link from 'next/link';
 import { useToast } from '@/components/providers/toast-provider';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+export const metadata: Metadata = {
+  title: 'Editar producto — Vendedor | MarketFlux',
+  description: 'Edita la información de un producto.',
+};
 
 export default function EditProductPage() {
   const params = useParams();

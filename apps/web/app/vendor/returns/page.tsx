@@ -1,5 +1,6 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/providers/toast-provider';
 
@@ -7,6 +8,11 @@ const STATUS_STYLES: Record<string, string> = {
   requested: 'bg-yellow-100 text-yellow-700', approved: 'bg-blue-100 text-blue-700',
   in_transit: 'bg-purple-100 text-purple-700', completed: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-700',
+};
+
+export const metadata: Metadata = {
+  title: 'Devoluciones — Vendedor | MarketFlux',
+  description: 'Gestiona las devoluciones de tu tienda.',
 };
 
 export default function VendorReturnsPage() {

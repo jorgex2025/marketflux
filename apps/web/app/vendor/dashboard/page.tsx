@@ -1,9 +1,15 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 
 interface KPI { label: string; value: string; sub?: string; color: string; }
+
+export const metadata: Metadata = {
+  title: 'Dashboard Vendedor — MarketFlux',
+  description: 'Panel de control para vendedores del marketplace.',
+};
 
 export default function VendorDashboardPage() {
   const { user } = useAuth();

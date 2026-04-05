@@ -1,7 +1,13 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: 'Mi lista de deseos — MarketFlux',
+  description: 'Consulta los productos que has guardado en tu lista de deseos.',
+};
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 

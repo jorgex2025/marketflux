@@ -1,6 +1,17 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
+
+export const metadata: Metadata = {
+  title: 'Finalizar compra — MarketFlux',
+  description: 'Completa tu pedido y realiza el pago de forma segura.',
+};
+
+export const metadata: Metadata = {
+  title: 'Finalizar compra — MarketFlux',
+  description: 'Completa tu pedido y realiza el pago de forma segura.',
+};
 import { useRouter } from 'next/navigation';
 import { useCartStore, selectCartTotal } from '@/store/cart.store';
 import { useToast } from '@/components/providers/toast-provider';

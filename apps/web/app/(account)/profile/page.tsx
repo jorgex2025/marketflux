@@ -1,6 +1,12 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useState, useEffect } from 'react';
+
+export const metadata: Metadata = {
+  title: 'Mi perfil — MarketFlux',
+  description: 'Edita la información de tu perfil.',
+};
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 

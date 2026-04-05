@@ -1,11 +1,17 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/components/providers/toast-provider';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+export const metadata: Metadata = {
+  title: 'Configuración inicial — Vendedor | MarketFlux',
+  description: 'Completa los pasos para empezar a vender.',
+};
 
 const STEPS = [
   { key: 'store', label: 'Tienda' },

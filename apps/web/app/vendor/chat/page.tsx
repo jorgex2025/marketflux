@@ -1,9 +1,15 @@
 'use client';
 
+import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+export const metadata: Metadata = {
+  title: 'Mensajes — Vendedor | MarketFlux',
+  description: 'Chatea con tus clientes.',
+};
 
 interface Conversation {
   id: string;

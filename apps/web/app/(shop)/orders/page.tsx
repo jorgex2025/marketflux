@@ -1,5 +1,12 @@
 'use client';
+
+import type { Metadata } from 'next';
 import { useState, useEffect } from 'react';
+
+export const metadata: Metadata = {
+  title: 'Mis pedidos — MarketFlux',
+  description: 'Consulta el historial y estado de tus pedidos.',
+};
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../hooks/use-auth';
